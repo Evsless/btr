@@ -1,20 +1,87 @@
-use std::fs::{self, File};
-use std::io;
 use home;
+use core::panic;
+use serde::{Deserialize, Serialize};
+use std::io::{self, ErrorKind, Read, Write};
+use std::fs::{self, create_dir, File, OpenOptions};
+
+
+/* __TO_BE_MODIFIED__ :: Redo the structure there. */
+const DEFAULT_CFG: &str = r#"
+expense_types = ["groceries", "transport", "entertainment"]
+income_types  = ["salary", "freelance", "dividends"]
+"#;
+
+
+#[derive(Serialize, Deserialize)]
+struct Config {
+    pub expense_types: Vec<String>,
+    pub income_types: Vec<String> 
+    
+}
 
 pub struct DataHandler {
-    root: Option<File>
+    root: Option<File>,
+    cfg: Config
 }
 
 impl DataHandler {
     pub fn new() -> Self {
-        Self {
-            root: None
+        let mut buffer = String::new();
+
+        /* Setup the home directory for cross platform compatibility */
+        let home_dir = home::home_dir()
+            .expect("Failed to get a home directory"); 
+
+        /* Ensure that the base dir exists */
+        let base_dir = home_dir.join(".btr"); 
+        if let Err(e) = create_dir(&base_dir) {
+            if e.kind() != ErrorKind::AlreadyExists {
+                panic!("Failed to create .btr directory.");
+            }
+        }
+
+        /* Check if the config file already exists */
+        let cfg_path = base_dir.join("btr.conf");
+        if !cfg_path.exists() {
+            if let Ok(mut file)  = OpenOptions::new()
+                .write(true)
+                .create(true)
+                .open(&cfg_path)
+            {
+                if let Err(e) = file.write_all(DEFAULT_CFG.as_bytes()) {
+                    panic!("Failed to write a default configuration to a config file: {e}")
+                } 
+            } else {
+                panic!("Failed to create a default configuration file")
+            }            
+        }
+
+        /* Read the configuration from a file to RAM */
+        let mut cfg_raw = File::open(cfg_path)
+            .expect("The line cannot fail as the code panicked previously.");
+        
+     
+        if let Err(e) = cfg_raw.read_to_string(&mut buffer) {
+            panic!("Failed to read a configuration file: {e}")
+        }
+
+        match toml::from_str(&buffer) {
+            Ok(cfg) => {
+                Self {
+                    root: None,
+                    cfg: cfg
+                }
+            },
+            Err(e) => {
+                panic!("Failed to deserialize configuration file: {e}")
+            }
         }
     }
 
 
     pub fn data_init(&mut self) -> Result<(), io::Error> {
+
+        /* __TO_BE_MODIFIED__ :: Rewrithe this home dir creation as it is ugly as hell. */
         let home_dir = match home::home_dir() {
             Some(home_path) => home_path.into_os_string().into_string().unwrap(),
             _ => return Err(io::Error::new(io::ErrorKind::NotFound, "Home directory wasn't found"))
