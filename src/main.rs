@@ -5,13 +5,8 @@ mod data;
 
 
 fn main() {
-    let mut data_handler = data::DataHandler::new();
     let mut request_handler = requests::RequestsHandler::new();
     
-    if let Err(e) = data_handler.data_init() {
-        println!("Error when creating DB occured: {}", e)
-    }
-
     let mut buffer = String::new();
     let stdin = io::stdin();
 

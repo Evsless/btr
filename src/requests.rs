@@ -1,4 +1,4 @@
-use std::fs::OpenOptions;
+use std::{fs::OpenOptions, io::ErrorKind};
 
 use chrono::{Datelike, Utc};
 
@@ -47,7 +47,6 @@ impl RequestsHandler {
                 "help" => self.help(),
                 "month" => {
                     self.month(&args[1..]);
-                    println!("Code to handle month creation");
                 }
                 "year" => {
                     println!("Code to handler year-s creation");
@@ -67,21 +66,24 @@ impl RequestsHandler {
         } else {
             let now_utc = Utc::now().date_naive();
             sheet_name = format!("{:02}_{}.json", now_utc.month(), now_utc.year());
+        }
 
-            let sheet = OpenOptions::new()
-                .write(true)
-                .create(true)
-                .open(format!("/home/evsless/.btr/{}", sheet_name));
-
-            println!("{}", format!("~/.btr/{}", sheet_name));
-
-            match sheet {
-               Ok(file) => {
-                println!("* Created a new expenses sheet.")
-                /* Write a root node to an expense sheet there. */
-               },
-               Err(e)  => println!("* ERROR: Problem occured when creating expense sheet: {}", e),
-            }
+        /* Create an expense sheet if doesn't exist yet */
+        match OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(format!("/home/evsless/.btr/{}", sheet_name))
+        {
+            Ok(file) => {
+                println!("File created!");
+            },
+            Err(e) => {
+                if e.kind() != ErrorKind::AlreadyExists {
+                    eprintln!("! Error when creating a new expense sheet: {e}.");
+                } else {
+                    println!("> INFO: expense sheet already exists.");
+                }
+            },
         }
     }
 }
