@@ -1,6 +1,7 @@
-use std::{fs::OpenOptions, io::ErrorKind};
+use std::{fs::OpenOptions, io::{ErrorKind, Write}};
 
-use chrono::{Datelike, Utc};
+use chrono::{Datelike, NaiveDate, Utc};
+use crate::data::{ExpenseSheet};
 
 enum Request {
     Add,
@@ -11,29 +12,35 @@ enum Request {
 }
 
 pub struct RequestsHandler {
-    active_request: Request
+    active_request: Request,
 }
 
 impl RequestsHandler {
     pub fn new() -> Self {
-        Self { active_request: Request::None }
+        Self {
+            active_request: Request::None,
+        }
     }
 
     pub fn help(&mut self) {
         match self.active_request {
             Request::Add => {
-                println!(">> add: add a new element to database
+                println!(
+                    ">> add: add a new element to database
                     \r>> month - create a new sheet with expenses.
-                    \r>> year - create a new sheet with year expenses.")
-            },
+                    \r>> year - create a new sheet with year expenses."
+                )
+            }
             Request::None => {
-                println!(">> Help: budget tracker application
+                println!(
+                    ">> Help: budget tracker application
                     \r>> add - add a new item to a database.
                     \r>> rm  - remove an item from a database.
                     \r>> mod - modify an item from a database.
-                    \r>> show - list an item from a database.");
+                    \r>> show - list an item from a database."
+                );
             }
-            _ => println!("To be done")
+            _ => println!("To be done"),
         }
 
         self.active_request = Request::None
@@ -51,7 +58,10 @@ impl RequestsHandler {
                 "year" => {
                     println!("Code to handler year-s creation");
                 }
-                _ => println!("> ERROR: Unsupported command: {}. Check 'add help'.", args[0])
+                _ => println!(
+                    "> ERROR: Unsupported command: {}. Check 'add help'.",
+                    args[0]
+                ),
             }
         } else {
             println!("> ERROR: 'add' expects at least one argument. Check help");
@@ -60,7 +70,7 @@ impl RequestsHandler {
 
     fn month(&self, args: &[&str]) {
         let mut sheet_name = String::new();
-        
+
         if args.len() > 0 {
             sheet_name = args[0].to_string();
         } else {
@@ -74,16 +84,24 @@ impl RequestsHandler {
             .create_new(true)
             .open(format!("/home/evsless/.btr/{}", sheet_name))
         {
-            Ok(file) => {
-                println!("File created!");
-            },
+            Ok(mut file) => {
+                /* Create a default sheet */
+                let default_data_t = ExpenseSheet::new();
+                
+                /* Write the default data ot a sheet */
+                let default_data_s = serde_json::to_string(&default_data_t)
+                    .expect("Update the error handling there.");
+
+                file.write_all(default_data_s.as_bytes())
+                    .expect("Update the error handling there");
+            }
             Err(e) => {
                 if e.kind() != ErrorKind::AlreadyExists {
                     eprintln!("! Error when creating a new expense sheet: {e}.");
                 } else {
                     println!("> INFO: expense sheet already exists.");
                 }
-            },
+            }
         }
     }
 }
