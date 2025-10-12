@@ -1,7 +1,12 @@
-use std::{fs::OpenOptions, io::{ErrorKind, Write}};
+use std::{io::{ErrorKind, Write}};
+use std::fs::{
+    self,
+    OpenOptions
+};
+
 
 use chrono::{Datelike, NaiveDate, Utc};
-use crate::data::{ExpenseSheet};
+use crate::{config::{self, Config}, data::ExpenseSheet};
 
 enum Request {
     Add,
@@ -28,6 +33,7 @@ impl RequestsHandler {
                 println!(
                     ">> add: add a new element to database
                     \r>> month - create a new sheet with expenses.
+                    \r>> expense - create a new expense row in an active month.
                     \r>> year - create a new sheet with year expenses."
                 )
             }
@@ -52,6 +58,9 @@ impl RequestsHandler {
         if args.len() > 0 {
             match args[0] {
                 "help" => self.help(),
+                "expense" => {
+                    self.expense(&args[1..]);
+                }
                 "month" => {
                     self.month(&args[1..]);
                 }
@@ -64,7 +73,41 @@ impl RequestsHandler {
                 ),
             }
         } else {
-            println!("> ERROR: 'add' expects at least one argument. Check help");
+            println!("> ERROR: 'add' expects at least one argument. Check help.");
+        }
+    }
+
+    /* __TO_BE_MODIFIED__ :: Check how to handle the command help (if possible) */
+    fn expense(&self, args: &[&str]) {
+
+        if args.len() < 2 {
+            eprintln!("> ERROR: 'expense' expects at least two arguments. Check help.")
+        }
+        
+        /* __TO_BE_MODIFIED__ :: Use a home there instead of hardcoded /home/evsless. */
+        if let Ok(cfg_str) = fs::read_to_string("/home/evsless/.btr/btr.conf") {
+            if let Ok(cfg) = toml::from_str::<Config>(&cfg_str) {
+                println!("Parsed config: {:?}", cfg);
+
+                let expense_type = args[0];
+                let amount = args[1];
+
+                if cfg.core.expense_types.iter().any(|t| t == expense_type) {
+                    let expense_sheet = ExpenseSheet::get_data("09_2025");
+
+                    match  expense_sheet {
+                        Ok(curr_expenses) => {
+                            /* Create a new expense field, write and save a new file */
+                            curr_expenses.new_record(&expense_type, &amount);
+                        },
+                        Err(e) => {
+                            eprintln!("> ERROR: Error reading the expense sheet: {}", e)
+                        }
+                    }
+                }
+            }
+        } else {
+            eprintln!("> ERROR: Failed to read a configuration file to string.");
         }
     }
 
