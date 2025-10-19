@@ -1,4 +1,6 @@
-use std::io::{stdin, stdout, Write};
+use std::{f64, fmt::format, io::{stdin, stdout, Write}, path::StripPrefixError};
+use chrono::{Datelike, Utc};
+
 use crate::database::manager::TrackerManager;
 
 
@@ -14,28 +16,70 @@ pub struct CommandNode {
     cmd: String,
     description: String,
     children: Vec<CommandNode>,
-    handler: Option<fn(&[&str]) -> Result<(), String>>
-
+    handler: Option<fn(&[&str]) -> Result<(), String>>,
+    extra_args: bool
 }
 
 
 impl TrackerCli {
     pub fn new() -> Self {
         let cmd_tree = 
-            CommandNode::new("root", "Budget tracker CLI.")
+            CommandNode::new("root", "Budget tracker CLI.", None)
             .add_child(
-                CommandNode::new("add", "Add a new record to a budget tracker.")
-                    .add_child(CommandNode::new("expense", "Add a new expense record to an active sheet."))
-                    .add_child(CommandNode::new("month", "Add a new month sheet to an expenses database."))
-                    .add_child(CommandNode::new("year", "Add a new year sheet to an expenses database."))
+                CommandNode::new("add", "Add a new record to a budget tracker.", None)
+                    .add_child(CommandNode::new(
+                        "expense",
+                        "Add a new expense record to an active sheet.",
+                        Some(Self::add_expense_handler))
+                    )
+                    .add_child(CommandNode::new(
+                        "month",
+                        "Add a new month sheet to an expenses database.",
+                        Some(Self::add_month_handler))
+                    )
+                    .add_child(CommandNode::new(
+                        "year", 
+                        "Add a new year sheet to an expenses database.",
+                        Some(Self::add_year_handler))
+                    )
             )
-            .add_child(CommandNode::new("remove", "Remove a record from an expenses database."))
-            .add_child(CommandNode::new("modify", "Modify an existing record in an expenses database"));
+            .add_child(CommandNode::new("remove", "Remove a record from an expenses database.", None))
+            .add_child(CommandNode::new("modify", "Modify an existing record in an expenses database", None));
 
         Self { 
             buffer: String::new(), 
             cmd_tree: cmd_tree,
             db_manager: TrackerManager::new() }
+    }
+
+
+    fn add_expense_handler(args: &[&str]) -> Result<(), String>{
+        println!("Enteren add handler!");
+        Ok(())
+    }
+
+    fn add_month_handler(args: &[&str]) -> Result<(), String> {
+        if let Some(pos) = args.iter().position(|&x| x == "month") {
+
+            let sheet_name = if args.len() > pos + 1 {
+                /* Special case. Sheet name provided by the user. */
+                args[pos + 1..].join(" ")
+            } else {
+                /* Default case. The sheet name is '<month>_<year>' */
+                let date = Utc::now().naive_utc();
+                format!("{}_{}", date.month(), date.year())
+            };
+            /* TBD: Add the manager handler for the month. */
+
+            Ok(())
+        } else {
+            /* Nothing to do. The handler should not be called in this case. */
+            Err("ERROR: Unhandled exception. Non-reachable condition.".to_string())
+        }
+    }
+
+    fn add_year_handler(args: &[&str]) -> Result<(), String> {
+        Ok(())
     }
 
     pub fn main_function(&mut self) { /* Without the &self - static method. */
@@ -50,9 +94,7 @@ impl TrackerCli {
 
         let tokens: Vec<&str> = self.buffer.split_ascii_whitespace().collect();
 
-
         /* Check if given request is 'help' */
-
         if let Some(help_pos) = tokens.iter().position(|&token| token == "help") {
             let context = &tokens[..help_pos];
 
@@ -62,17 +104,29 @@ impl TrackerCli {
                 eprintln!("> FAILED: Unknown command: {}", context.join(" "));
             }
         }
+
+        /* Process the regular command */
+        if let Some(cmd_node) = self.cmd_tree.find_command(&tokens) {
+            if let Some(handler_fn) = cmd_node.handler {
+                handler_fn(&tokens);
+            }
+        } else {
+            eprintln!("> FAILED: Unknown command: {}", tokens.join(" "));
+        }
+        
+
     }
 }
 
 
 impl CommandNode {
-    pub fn new(cmd: &str, description: &str) -> Self {
+    pub fn new(cmd: &str, description: &str, handler: Option<fn(&[&str]) -> Result<(), String>>) -> Self {
         Self {
             cmd: cmd.to_string(),
             description: description.to_string(),
             children: Vec::new(),
-            handler: None
+            handler: handler,
+            extra_args: handler.is_some()
         }
     }
 
@@ -82,10 +136,15 @@ impl CommandNode {
     }
 
     pub fn find_command(&self, cmd: &[&str]) -> Option<&CommandNode> {
-        /* Base case: the last CommandNode was reached */
+        /* Base case: the last CommandNode was reached. */
         if cmd.is_empty() {
             return Some(self);
-        };
+        }
+
+        /* Last node in a chain. Rest of arguments are optional and should not be handled. */
+        if self.extra_args {
+            return Some(self);
+        }
 
         /* Recursive case: iterate until reaching the last subcommand */
         for child in &self.children {
