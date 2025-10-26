@@ -1,73 +1,33 @@
-// use home;
-// use core::panic;
-// use chrono::{Datelike, NaiveDate};
-// use std::fs::{self, File, OpenOptions, create_dir};
-// use std::io::{ErrorKind, Read, Write};
-// use serde::{Serialize, Deserialize};
-
-// use crate::database_config::Config;
-
-/* __TO_BE_MODIFIED__ :: Redo the structure there. */
-// const DEFAULT_CFG: &str = r#"[core]
-// expense_types = ["groceries", "transport", "entertainment"]
-// income_types  = ["salary", "freelance", "dividends"]
-// "#;
-
-// #[derive(Serialize, Deserialize)]
-// struct ExpenseRecord {
-//     field: String,
-//     spent: f32,
-//     date: NaiveDate
-// }
-
-// #[derive(Serialize, Deserialize)]
-// pub struct ExpenseSheet {
-//     period: String, /* __TO_BE_MODIFIED__ :: A simplified data type to hold month and year only? */SD;LKJL
-//     savings: f32,
-//     start_amount: f32,
-//     currently_spent: f32, 
-//     expenses: Vec<ExpenseRecord>
-// }
-
-// pub struct DataHandler {
-//     root: Option<File>,
-//     cfg: Config
-// }
-
-// impl ExpenseSheet {
-//     pub fn new() -> Self {
-//         let curr_date = chrono::Utc::now().date_naive();
-//         ExpenseSheet{
-//             period: format!("{}-{}", curr_date.month(), curr_date.year()),
-//             savings: 0.0,
-//             start_amount: 0.0,
-//             currently_spent: 0.0,
-//             expenses: Vec::new(),
-//         }
-//     }
-
-//     pub fn get_data(expense_sheet: &str) -> Result<Self, Box<dyn std::error::Error>> {
-//         let path = format!("/home/evsless/.btr/{}.json", expense_sheet);
-        
-//         let expense_sheet_str = fs::read_to_string(&path)?;
-//         let sheet = serde_json::from_str::<Self>(&expense_sheet_str)?;
-
-//         Ok(sheet)
-//     }
-
-//     pub fn new_record(&self, expense_type: &str, amount: &str) {
-//         println!(">> DEBUG: {}", self.period);
-//     }
-    
-// }
+use std::{fs::File, io::ErrorKind};
+use crate::{database::config::TrackerConfig, };
 
 pub struct TrackerManager {
-    tmp: String
+    active_sheet: Option<ExpenseSheet>,
+    config: TrackerConfig
+}
+
+pub struct ExpenseSheet {
+    pub name: String
 }
 
 impl TrackerManager {
     pub fn new() -> Self {
-        Self { tmp: String::from("Hello there!") }
+        Self {
+            active_sheet: None,
+            config: TrackerConfig::new()
+        }
+    }
+
+    pub fn month(&self, sheet_path: &str, truncate: bool) -> Result<(), std::io::Error> {
+
+        let file = if truncate {
+            File::create(sheet_path)?
+        } else {
+            File::create_new(sheet_path)?
+        };
+
+        /* __TO_BE_MODIFIED__ :: Write a default data to a sheet there. */
+        Ok(())
     }
     // pub fn new() -> Self {
     //     let mut buffer = String::new();

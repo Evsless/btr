@@ -7,6 +7,13 @@ pub struct Core {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct Config {
-    pub core: Core,
+pub struct TrackerConfig {
+    pub core: Option<Core>,
+}
+
+
+impl TrackerConfig {
+    pub fn new() -> Self {
+        Self { core: None }
+    }
 }

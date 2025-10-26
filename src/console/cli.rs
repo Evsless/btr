@@ -1,6 +1,8 @@
-use std::{f64, fmt::format, io::{stdin, stdout, Write}, path::StripPrefixError};
 use chrono::{Datelike, Utc};
+use std::fs;
+use std::io::{stdin, stdout, ErrorKind, Write};
 
+use crate::utils::Utils;
 use crate::database::manager::TrackerManager;
 
 
@@ -8,7 +10,7 @@ use crate::database::manager::TrackerManager;
 pub struct TrackerCli {
     buffer: String,
     cmd_tree: CommandNode,
-    db_manager: TrackerManager
+    tracker_manager: TrackerManager
 }
 
 
@@ -16,7 +18,7 @@ pub struct CommandNode {
     cmd: String,
     description: String,
     children: Vec<CommandNode>,
-    handler: Option<fn(&[&str]) -> Result<(), String>>,
+    handler: Option<fn(&mut TrackerManager, &[&str]) -> Result<(), String>>,
     extra_args: bool
 }
 
@@ -49,16 +51,16 @@ impl TrackerCli {
         Self { 
             buffer: String::new(), 
             cmd_tree: cmd_tree,
-            db_manager: TrackerManager::new() }
+            tracker_manager: TrackerManager::new() }
     }
 
 
-    fn add_expense_handler(args: &[&str]) -> Result<(), String>{
+    fn add_expense_handler(manager: &mut TrackerManager, args: &[&str]) -> Result<(), String>{
         println!("Enteren add handler!");
         Ok(())
     }
 
-    fn add_month_handler(args: &[&str]) -> Result<(), String> {
+    fn add_month_handler(manager: &mut TrackerManager, args: &[&str]) -> Result<(), String> {
         if let Some(pos) = args.iter().position(|&x| x == "month") {
 
             let sheet_name = if args.len() > pos + 1 {
@@ -69,7 +71,40 @@ impl TrackerCli {
                 let date = Utc::now().naive_utc();
                 format!("{}_{}", date.month(), date.year())
             };
-            /* TBD: Add the manager handler for the month. */
+ 
+            let utils = Utils::new();
+            let sheet_path = format!("{}/{}.json", utils.home_dir().display(), sheet_name);
+            
+            if let Err(e) = manager.month(&sheet_name, false) {
+                if e.kind() == ErrorKind::AlreadyExists {
+
+                loop {
+                    println!("! Sheet '{}' already exists. Overwrite? [Y/N]", sheet_path);
+                    print!("> ");
+                    let _ = stdout().flush();
+
+                    let mut buffer = String::new();
+                    stdin().read_line(&mut buffer)
+                        .map_err(|e| format!("Error reading from stdin: {}", e))?;
+                    let buffer = buffer.trim().to_ascii_lowercase();
+
+                    match buffer.as_str() {
+                        "y" => {
+                            /* Re-run the month method, this time truncate a file. */
+                            manager.month(&sheet_path, true)
+                                .map_err(|e| format!("Failed to create sheet: {}", e))?;
+                            break;
+                        },
+                        "n" => {
+                            break;
+                        },
+                        _ => {
+                            println!("! Unsupported input: {}.", buffer);                            
+                        }
+                    }
+                }
+                }
+            }
 
             Ok(())
         } else {
@@ -78,7 +113,7 @@ impl TrackerCli {
         }
     }
 
-    fn add_year_handler(args: &[&str]) -> Result<(), String> {
+    fn add_year_handler(manager: &mut TrackerManager, args: &[&str]) -> Result<(), String> {
         Ok(())
     }
 
@@ -108,19 +143,17 @@ impl TrackerCli {
         /* Process the regular command */
         if let Some(cmd_node) = self.cmd_tree.find_command(&tokens) {
             if let Some(handler_fn) = cmd_node.handler {
-                handler_fn(&tokens);
+                handler_fn(&mut self.tracker_manager, &tokens).unwrap();
             }
         } else {
             eprintln!("> FAILED: Unknown command: {}", tokens.join(" "));
         }
-        
-
     }
 }
 
 
 impl CommandNode {
-    pub fn new(cmd: &str, description: &str, handler: Option<fn(&[&str]) -> Result<(), String>>) -> Self {
+    pub fn new(cmd: &str, description: &str, handler: Option<fn(&mut TrackerManager, &[&str]) -> Result<(), String>>) -> Self {
         Self {
             cmd: cmd.to_string(),
             description: description.to_string(),
