@@ -18,7 +18,7 @@ impl TrackerManager {
         }
     }
 
-    pub fn month(&self, sheet_path: &str, truncate: bool) -> Result<(), std::io::Error> {
+    pub fn month(&mut self, sheet_path: &str, truncate: bool) -> Result<(), std::io::Error> {
 
         let file = if truncate {
             File::create(sheet_path)?
@@ -27,6 +27,16 @@ impl TrackerManager {
         };
 
         /* __TO_BE_MODIFIED__ :: Write a default data to a sheet there. */
+        Ok(())
+    }
+
+    pub fn year(&mut self, sheet_path: &str, truncate: bool) -> Result<(), std::io::Error> {
+        let file = if truncate {
+            File::create(sheet_path)?;
+        } else {
+            File::create_new(sheet_path)?;
+        };
+
         Ok(())
     }
     // pub fn new() -> Self {

@@ -1,10 +1,8 @@
 use chrono::{Datelike, Utc};
-use std::fs;
 use std::io::{stdin, stdout, ErrorKind, Write};
 
 use crate::utils::Utils;
 use crate::database::manager::TrackerManager;
-
 
 
 pub struct TrackerCli {
@@ -60,6 +58,52 @@ impl TrackerCli {
         Ok(())
     }
 
+    fn user_input() -> Result<String, String> {
+        print!("> ");
+        let _ = stdout().flush();
+
+        let mut buffer = String::new();
+        stdin().read_line(&mut buffer)
+            .map_err(|e| format!("Error reading from stdin: {}", e))?;
+
+        Ok(buffer)
+    }
+
+    fn create_sheet_with_prompt(
+        manager: &mut TrackerManager, 
+        sheet_path: &str, 
+        create_fn: fn(&mut TrackerManager, &str, bool) -> Result<(), std::io::Error>
+    ) -> Result<(), String> {
+        if let Err(e) = create_fn(manager, sheet_path, false) {
+            if e.kind() == ErrorKind::AlreadyExists {
+                loop {
+                    println!("! Sheet '{}' already exists. Overwrite? [Y/N]", sheet_path);
+                    let user_input = TrackerCli::user_input()?;
+
+                    match user_input.trim().to_ascii_lowercase().as_str() {
+                        "y" => {
+                            create_fn(manager, sheet_path, true)
+                                .map_err(|e| format!("Failed to create sheet: {}", e))?;
+                            break;
+                        },
+                        "n" => {
+                            break;
+                        },
+                        _ => {
+                            println!("! Unsupported input: '{}'", user_input.trim());
+                        }
+                    }
+                }
+            } else {
+                return Err(format!("Failed to create sheet with error: {}", e))
+            }
+        } else {
+            println!("> Sheet '{}' created succesfully.", sheet_path);
+        }
+
+        Ok(())
+    }
+
     fn add_month_handler(manager: &mut TrackerManager, args: &[&str]) -> Result<(), String> {
         if let Some(pos) = args.iter().position(|&x| x == "month") {
 
@@ -75,57 +119,34 @@ impl TrackerCli {
             let utils = Utils::new();
             let sheet_path = format!("{}/{}.json", utils.home_dir().display(), sheet_name);
             
-            if let Err(e) = manager.month(&sheet_name, false) {
-                if e.kind() == ErrorKind::AlreadyExists {
-
-                loop {
-                    println!("! Sheet '{}' already exists. Overwrite? [Y/N]", sheet_path);
-                    print!("> ");
-                    let _ = stdout().flush();
-
-                    let mut buffer = String::new();
-                    stdin().read_line(&mut buffer)
-                        .map_err(|e| format!("Error reading from stdin: {}", e))?;
-                    let buffer = buffer.trim().to_ascii_lowercase();
-
-                    match buffer.as_str() {
-                        "y" => {
-                            /* Re-run the month method, this time truncate a file. */
-                            manager.month(&sheet_path, true)
-                                .map_err(|e| format!("Failed to create sheet: {}", e))?;
-                            break;
-                        },
-                        "n" => {
-                            break;
-                        },
-                        _ => {
-                            println!("! Unsupported input: {}.", buffer);                            
-                        }
-                    }
-                }
-                }
-            }
-
-            Ok(())
-        } else {
-            /* Nothing to do. The handler should not be called in this case. */
-            Err("ERROR: Unhandled exception. Non-reachable condition.".to_string())
+            return Self::create_sheet_with_prompt(manager, &sheet_path, |m, p, t| m.month(p, t));
         }
+    
+        Err("ERROR: Unhandled exception. Non-reachable condition.".to_string())
     }
 
     fn add_year_handler(manager: &mut TrackerManager, args: &[&str]) -> Result<(), String> {
-        Ok(())
+        if let Some(pos) = args.iter().position(|&x| x == "year" ) {
+            let sheet_name = if args.len() > pos + 1 {
+                args[pos + 1..].join(" ")
+            } else {
+                let date = Utc::now().naive_utc();
+                format!("y_{}", date.year())
+            };
+
+            let utils = Utils::new();
+            let sheet_path = format!("{}/{}.json", utils.home_dir().display(), sheet_name);
+                
+            /* Create a sheet with 'overwrite' handler. */
+            return Self::create_sheet_with_prompt(manager, &sheet_path, |m, p, t|m.year(p, t));
+        }
+        Err("ERROR: Unhandled exception. Non-reachable condition.".to_string())
     }
 
     pub fn main_function(&mut self) { /* Without the &self - static method. */
-        print!("> ");
-
-        if let Err(e) = stdout().flush() {
-            eprintln!("> Failed to flush the stdout: {}", e);
-        }
-
         self.buffer.clear();
-        stdin().read_line(&mut self.buffer).unwrap();
+        self.buffer = TrackerCli::user_input()
+            .expect("MODIFY THE RETURN VALUE THERE");
 
         let tokens: Vec<&str> = self.buffer.split_ascii_whitespace().collect();
 
