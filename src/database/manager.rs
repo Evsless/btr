@@ -1,13 +1,25 @@
-use std::{fs::File, io::ErrorKind};
-use crate::{database::config::TrackerConfig, };
+use std::{fs::File, io::Write, path::{Path, PathBuf}};
+use chrono::NaiveDate;
+use serde::{Deserialize, Serialize};
+
+use crate::{database::config::TrackerConfig, utils::Utils};
+
 
 pub struct TrackerManager {
     active_sheet: Option<ExpenseSheet>,
     config: TrackerConfig
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+pub struct ExpenseRecord {
+
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct ExpenseSheet {
-    pub name: String
+    pub name: String, /* TODO: Try to modify to &str */
+    pub period: (NaiveDate, NaiveDate),
+    pub expenses: Vec<ExpenseRecord> 
 }
 
 impl TrackerManager {
@@ -18,69 +30,32 @@ impl TrackerManager {
         }
     }
 
-    pub fn month(&mut self, sheet_path: &str, truncate: bool) -> Result<(), std::io::Error> {
+    pub fn new_sheet(&mut self, sheet_name: &str, period: (NaiveDate, NaiveDate), truncate: bool) -> Result<(), std::io::Error> {
+        let utils = Utils::new();
 
-        let file = if truncate {
+        /* Setup a path to a sheet based on a configuration */
+        let sheet_path = utils.home_dir()
+            .join(utils.btr_dir())
+            .join(format!("{}.json", sheet_name));
+
+        let mut file = if truncate {
             File::create(sheet_path)?
         } else {
             File::create_new(sheet_path)?
         };
 
-        /* __TO_BE_MODIFIED__ :: Write a default data to a sheet there. */
-        Ok(())
-    }
-
-    pub fn year(&mut self, sheet_path: &str, truncate: bool) -> Result<(), std::io::Error> {
-        let file = if truncate {
-            File::create(sheet_path)?;
-        } else {
-            File::create_new(sheet_path)?;
+        let empty_sheet = ExpenseSheet{
+            name: sheet_name.to_string(),
+            period: period,
+            expenses: Vec::new()
         };
 
+        let json = serde_json::to_string_pretty(&empty_sheet)
+            .expect("I think I have to modify the return value there. Probably returning a string would be a good thing");
+
+        file.write_all(json.as_bytes())?;
+
         Ok(())
     }
-    // pub fn new() -> Self {
-    //     let mut buffer = String::new();
 
-    //     /* Setup the home directory for cross platform compatibility */
-    //     let home_dir = home::home_dir().expect("Failed to get a home directory");
-
-    //     /* Ensure that the base dir exists */
-    //     let base_dir = home_dir.join(".btr");
-    //     if let Err(e) = create_dir(&base_dir) {
-    //         if e.kind() != ErrorKind::AlreadyExists {
-    //             panic!("Failed to create .btr directory.");
-    //         }
-    //     }
-
-    //     /* Check if the config file already exists */
-    //     let cfg_path = base_dir.join("btr.conf");
-    //     if !cfg_path.exists() {
-    //         if let Ok(mut file) = OpenOptions::new().write(true).create(true).open(&cfg_path) {
-    //             if let Err(e) = file.write_all(DEFAULT_CFG.as_bytes()) {
-    //                 panic!("Failed to write a default configuration to a config file: {e}")
-    //             }
-    //         } else {
-    //             panic!("Failed to create a default configuration file")
-    //         }
-    //     }
-
-    //     /* Read the configuration from a file to RAM */
-    //     let mut cfg_raw =
-    //         File::open(cfg_path).expect("The line cannot fail as the code panicked previously.");
-
-    //     if let Err(e) = cfg_raw.read_to_string(&mut buffer) {
-    //         panic!("Failed to read a configuration file: {e}")
-    //     }
-
-    //     match toml::from_str(&buffer) {
-    //         Ok(cfg) => Self {
-    //             root: None,
-    //             cfg: cfg,
-    //         },
-    //         Err(e) => {
-    //             panic!("Failed to deserialize configuration file: {e}")
-    //         }
-    //     }
-    // }
 }

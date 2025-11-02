@@ -1,8 +1,9 @@
-use chrono::{Datelike, Utc};
-use std::io::{stdin, stdout, ErrorKind, Write};
+use chrono::{Datelike, NaiveDate, Utc};
+use std::io::{ErrorKind, Write, stdin, stdout};
 
-use crate::utils::Utils;
-use crate::database::manager::TrackerManager;
+use crate::database::{
+    manager::TrackerManager,
+};
 
 
 pub struct TrackerCli {
@@ -35,12 +36,12 @@ impl TrackerCli {
                     .add_child(CommandNode::new(
                         "month",
                         "Add a new month sheet to an expenses database.",
-                        Some(Self::add_month_handler))
+                        Some(Self::add_sheet_handler))
                     )
                     .add_child(CommandNode::new(
                         "year", 
                         "Add a new year sheet to an expenses database.",
-                        Some(Self::add_year_handler))
+                        Some(Self::add_sheet_handler))
                     )
             )
             .add_child(CommandNode::new("remove", "Remove a record from an expenses database.", None))
@@ -67,22 +68,22 @@ impl TrackerCli {
             .map_err(|e| format!("Error reading from stdin: {}", e))?;
 
         Ok(buffer)
-    }
+    } 
 
     fn create_sheet_with_prompt(
         manager: &mut TrackerManager, 
-        sheet_path: &str, 
-        create_fn: fn(&mut TrackerManager, &str, bool) -> Result<(), std::io::Error>
+        sheet_name: &str,
+        period: (NaiveDate, NaiveDate)
     ) -> Result<(), String> {
-        if let Err(e) = create_fn(manager, sheet_path, false) {
+        if let Err(e) = manager.new_sheet(sheet_name, period, false) {
             if e.kind() == ErrorKind::AlreadyExists {
                 loop {
-                    println!("! Sheet '{}' already exists. Overwrite? [Y/N]", sheet_path);
+                    println!("! Sheet '{}.json' already exists. Overwrite? [Y/N]", sheet_name);
                     let user_input = TrackerCli::user_input()?;
 
                     match user_input.trim().to_ascii_lowercase().as_str() {
                         "y" => {
-                            create_fn(manager, sheet_path, true)
+                            manager.new_sheet(sheet_name, period, true)
                                 .map_err(|e| format!("Failed to create sheet: {}", e))?;
                             break;
                         },
@@ -98,76 +99,100 @@ impl TrackerCli {
                 return Err(format!("Failed to create sheet with error: {}", e))
             }
         } else {
-            println!("> Sheet '{}' created succesfully.", sheet_path);
+            println!("> Sheet '{}.json' created succesfully.", sheet_name);
         }
 
         Ok(())
     }
 
-    fn add_month_handler(manager: &mut TrackerManager, args: &[&str]) -> Result<(), String> {
-        if let Some(pos) = args.iter().position(|&x| x == "month") {
-
-            let sheet_name = if args.len() > pos + 1 {
-                /* Special case. Sheet name provided by the user. */
-                args[pos + 1..].join(" ")
-            } else {
-                /* Default case. The sheet name is '<month>_<year>' */
-                let date = Utc::now().naive_utc();
-                format!("{}_{}", date.month(), date.year())
-            };
- 
-            let utils = Utils::new();
-            let sheet_path = format!("{}/{}.json", utils.home_dir().display(), sheet_name);
-            
-            return Self::create_sheet_with_prompt(manager, &sheet_path, |m, p, t| m.month(p, t));
-        }
-    
-        Err("ERROR: Unhandled exception. Non-reachable condition.".to_string())
-    }
-
-    fn add_year_handler(manager: &mut TrackerManager, args: &[&str]) -> Result<(), String> {
-        if let Some(pos) = args.iter().position(|&x| x == "year" ) {
-            let sheet_name = if args.len() > pos + 1 {
-                args[pos + 1..].join(" ")
-            } else {
-                let date = Utc::now().naive_utc();
-                format!("y_{}", date.year())
-            };
-
-            let utils = Utils::new();
-            let sheet_path = format!("{}/{}.json", utils.home_dir().display(), sheet_name);
-                
-            /* Create a sheet with 'overwrite' handler. */
-            return Self::create_sheet_with_prompt(manager, &sheet_path, |m, p, t|m.year(p, t));
-        }
-        Err("ERROR: Unhandled exception. Non-reachable condition.".to_string())
-    }
-
-    pub fn main_function(&mut self) { /* Without the &self - static method. */
-        self.buffer.clear();
-        self.buffer = TrackerCli::user_input()
-            .expect("MODIFY THE RETURN VALUE THERE");
-
-        let tokens: Vec<&str> = self.buffer.split_ascii_whitespace().collect();
-
-        /* Check if given request is 'help' */
-        if let Some(help_pos) = tokens.iter().position(|&token| token == "help") {
-            let context = &tokens[..help_pos];
-
-            if let Some(cmd_node) = self.cmd_tree.find_command(context) {
-                cmd_node.show_help(context);
-            } else {
-                eprintln!("> FAILED: Unknown command: {}", context.join(" "));
-            }
-        }
-
-        /* Process the regular command */
-        if let Some(cmd_node) = self.cmd_tree.find_command(&tokens) {
-            if let Some(handler_fn) = cmd_node.handler {
-                handler_fn(&mut self.tracker_manager, &tokens).unwrap();
-            }
+    fn add_sheet_handler(manager: &mut TrackerManager, args: &[&str]) -> Result<(), String> {
+        let sheet_type = if args.iter().any(|&x| x == "month") {
+            "month"
+        } else if args.iter().any(|&x| x == "year") {
+            "year"
         } else {
-            eprintln!("> FAILED: Unknown command: {}", tokens.join(" "));
+            return Err("ERROR: Unhandled exception. Non-reachable condition.".to_string());
+        };
+
+        /* Determine a period */
+        /* TODO: Should I invent some separate class to handle the period calculations? */
+        let date = Utc::now().date_naive();
+        let year = date.year();
+        let month = date.month();
+
+        let period= match sheet_type {
+            "month" => {
+                let period_start = NaiveDate::from_ymd_opt(year, month, 1)
+                    .expect("I don't know how to write an architecture for that. Go back there.");
+        
+                let period_end = if month == 12 {
+                    NaiveDate::from_ymd_opt(year + 1, month, 1).unwrap()
+                } else {
+                    NaiveDate::from_ymd_opt(year, month + 1, 1).unwrap()
+                }.pred_opt().expect("I don't know how to write an architecture for that. Go back later.");
+    
+                (period_start, period_end)
+            },
+            "year" => {
+                let period_start = NaiveDate::from_ymd_opt(year, 1, 1)
+                    .expect("I don't know how to write an architecture for that. Go back there.");
+        
+                let period_end = if month == 12 {
+                    NaiveDate::from_ymd_opt(year + 1, month, 1).unwrap()
+                } else {
+                    NaiveDate::from_ymd_opt(year, 12, 31).unwrap()
+                }.pred_opt().expect("I don't know how to write an architecture for that. Go back later.");
+    
+                (period_start, period_end)
+            },
+            _ => unreachable!()
+        };
+
+        /* Determine a sheet name */
+        let pos = args.iter().position(|&x| x == sheet_type)
+            .unwrap();
+        let sheet_name = if args.len() > pos + 1 {
+            /* Special case: custom sheet name */
+            args[pos + 1..].join(" ")
+        } else {
+            /* Default case. Prepare a sheet name based on its type. */
+            match sheet_type {
+                "month" => format!("{}-{}", date.month(), date.year()),
+                "year" => date.year().to_string(),
+                _ => unreachable!()
+            }
+        };
+
+        Self::create_sheet_with_prompt(manager, &sheet_name, period)
+    }
+    
+    pub fn main_function(&mut self) { /* Without the &self - static method. */
+        loop {
+            self.buffer.clear();
+            self.buffer = TrackerCli::user_input()
+                .expect("MODIFY THE RETURN VALUE THERE");
+
+            let tokens: Vec<&str> = self.buffer.split_ascii_whitespace().collect();
+
+            /* Check if given request is 'help' */
+            if let Some(help_pos) = tokens.iter().position(|&token| token == "help") {
+                let context = &tokens[..help_pos];
+
+                if let Some(cmd_node) = self.cmd_tree.find_command(context) {
+                    cmd_node.show_help(context);
+                } else {
+                    eprintln!("> FAILED: Unknown command: {}", context.join(" "));
+                }
+            }
+
+            /* Process the regular command */
+            if let Some(cmd_node) = self.cmd_tree.find_command(&tokens) {
+                if let Some(handler_fn) = cmd_node.handler {
+                    handler_fn(&mut self.tracker_manager, &tokens).unwrap();
+                }
+            } else {
+                eprintln!("> FAILED: Unknown command: {}", tokens.join(" "));
+            }
         }
     }
 }
