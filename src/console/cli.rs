@@ -1,8 +1,9 @@
-use chrono::{Datelike, NaiveDate, Utc};
+use chrono::{Datelike, Utc};
 use std::io::{ErrorKind, Write, stdin, stdout};
 
 use crate::database::{
     manager::TrackerManager,
+    periods::Period
 };
 
 
@@ -73,9 +74,10 @@ impl TrackerCli {
     fn create_sheet_with_prompt(
         manager: &mut TrackerManager, 
         sheet_name: &str,
-        period: (NaiveDate, NaiveDate)
+        period: Period
     ) -> Result<(), String> {
-        if let Err(e) = manager.new_sheet(sheet_name, period, false) {
+        /* Period is a small data type - simple clone use is enough. */
+        if let Err(e) = manager.new_sheet(sheet_name, period.clone(), false) {
             if e.kind() == ErrorKind::AlreadyExists {
                 loop {
                     println!("! Sheet '{}.json' already exists. Overwrite? [Y/N]", sheet_name);
@@ -117,33 +119,15 @@ impl TrackerCli {
         /* Determine a period */
         /* TODO: Should I invent some separate class to handle the period calculations? */
         let date = Utc::now().date_naive();
-        let year = date.year();
-        let month = date.month();
 
         let period= match sheet_type {
             "month" => {
-                let period_start = NaiveDate::from_ymd_opt(year, month, 1)
-                    .expect("I don't know how to write an architecture for that. Go back there.");
-        
-                let period_end = if month == 12 {
-                    NaiveDate::from_ymd_opt(year + 1, month, 1).unwrap()
-                } else {
-                    NaiveDate::from_ymd_opt(year, month + 1, 1).unwrap()
-                }.pred_opt().expect("I don't know how to write an architecture for that. Go back later.");
-    
-                (period_start, period_end)
+                Period::current_month()
+                    .expect("Getting a current month. No option to be outside the month range.")
             },
             "year" => {
-                let period_start = NaiveDate::from_ymd_opt(year, 1, 1)
-                    .expect("I don't know how to write an architecture for that. Go back there.");
-        
-                let period_end = if month == 12 {
-                    NaiveDate::from_ymd_opt(year + 1, month, 1).unwrap()
-                } else {
-                    NaiveDate::from_ymd_opt(year, 12, 31).unwrap()
-                }.pred_opt().expect("I don't know how to write an architecture for that. Go back later.");
-    
-                (period_start, period_end)
+                Period::current_year()
+                    .expect("Getting a current year. No option to hit a negative year.")
             },
             _ => unreachable!()
         };
