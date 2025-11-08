@@ -1,13 +1,11 @@
 use std::{fs::File, io::Write};
-use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     database::{
         config::TrackerConfig, 
         periods::Period
-    }, 
-    utils::Utils
+    }, error::BtrError, utils::Utils
 };
 
 
@@ -36,7 +34,7 @@ impl TrackerManager {
         }
     }
 
-    pub fn new_sheet(&mut self, sheet_name: &str, period: Period, truncate: bool) -> Result<(), std::io::Error> {
+    pub fn new_sheet(&mut self, sheet_name: &str, period: Period, truncate: bool) -> Result<(), BtrError> {
         let utils = Utils::new();
 
         /* Setup a path to a sheet based on a configuration */

@@ -1,27 +1,18 @@
 use chrono::{Datelike, Utc};
 use std::io::{ErrorKind, Write, stdin, stdout};
-
-use crate::database::{
-    manager::TrackerManager,
-    periods::Period
+use crate::{
+    console::cmd::CommandNode, database::{
+        manager::TrackerManager,
+        periods::Period
+    },
+    error::{BtrError, BtrErrorKind}
 };
-
 
 pub struct TrackerCli {
     buffer: String,
     cmd_tree: CommandNode,
     tracker_manager: TrackerManager
 }
-
-
-pub struct CommandNode {
-    cmd: String,
-    description: String,
-    children: Vec<CommandNode>,
-    handler: Option<fn(&mut TrackerManager, &[&str]) -> Result<(), String>>,
-    extra_args: bool
-}
-
 
 impl TrackerCli {
     pub fn new() -> Self {
@@ -55,19 +46,18 @@ impl TrackerCli {
     }
 
 
-    fn add_expense_handler(manager: &mut TrackerManager, args: &[&str]) -> Result<(), String>{
+    fn add_expense_handler(manager: &mut TrackerManager, args: &[&str]) -> Result<(), BtrError>{
         println!("Enteren add handler!");
         Ok(())
     }
 
-    fn user_input() -> Result<String, String> {
+    fn user_input() -> Result<String, BtrError> {
         print!("> ");
         let _ = stdout().flush();
 
         let mut buffer = String::new();
-        stdin().read_line(&mut buffer)
-            .map_err(|e| format!("Error reading from stdin: {}", e))?;
-
+        stdin().read_line(&mut buffer)?;
+        
         Ok(buffer)
     } 
 
@@ -75,18 +65,17 @@ impl TrackerCli {
         manager: &mut TrackerManager, 
         sheet_name: &str,
         period: Period
-    ) -> Result<(), String> {
+    ) -> Result<(), BtrError> {
         /* Period is a small data type - simple clone use is enough. */
         if let Err(e) = manager.new_sheet(sheet_name, period.clone(), false) {
-            if e.kind() == ErrorKind::AlreadyExists {
+            if e.kind() == BtrErrorKind::Io(ErrorKind::AlreadyExists) {
                 loop {
                     println!("! Sheet '{}.json' already exists. Overwrite? [Y/N]", sheet_name);
                     let user_input = TrackerCli::user_input()?;
 
                     match user_input.trim().to_ascii_lowercase().as_str() {
                         "y" => {
-                            manager.new_sheet(sheet_name, period, true)
-                                .map_err(|e| format!("Failed to create sheet: {}", e))?;
+                            manager.new_sheet(sheet_name, period, true)?;
                             break;
                         },
                         "n" => {
@@ -98,7 +87,7 @@ impl TrackerCli {
                     }
                 }
             } else {
-                return Err(format!("Failed to create sheet with error: {}", e))
+                return Err(e)
             }
         } else {
             println!("> Sheet '{}.json' created succesfully.", sheet_name);
@@ -107,13 +96,13 @@ impl TrackerCli {
         Ok(())
     }
 
-    fn add_sheet_handler(manager: &mut TrackerManager, args: &[&str]) -> Result<(), String> {
+    fn add_sheet_handler(manager: &mut TrackerManager, args: &[&str]) -> Result<(), BtrError> {
         let sheet_type = if args.iter().any(|&x| x == "month") {
             "month"
         } else if args.iter().any(|&x| x == "year") {
             "year"
         } else {
-            return Err("ERROR: Unhandled exception. Non-reachable condition.".to_string());
+            return Err(BtrError::InvalidData(Some(String::from("Invalid operation"))));
         };
 
         /* Determine a period */
@@ -176,63 +165,6 @@ impl TrackerCli {
                 }
             } else {
                 eprintln!("> FAILED: Unknown command: {}", tokens.join(" "));
-            }
-        }
-    }
-}
-
-
-impl CommandNode {
-    pub fn new(cmd: &str, description: &str, handler: Option<fn(&mut TrackerManager, &[&str]) -> Result<(), String>>) -> Self {
-        Self {
-            cmd: cmd.to_string(),
-            description: description.to_string(),
-            children: Vec::new(),
-            handler: handler,
-            extra_args: handler.is_some()
-        }
-    }
-
-    pub fn add_child(mut self, child: CommandNode) -> Self {
-        self.children.push(child);
-        self
-    }
-
-    pub fn find_command(&self, cmd: &[&str]) -> Option<&CommandNode> {
-        /* Base case: the last CommandNode was reached. */
-        if cmd.is_empty() {
-            return Some(self);
-        }
-
-        /* Last node in a chain. Rest of arguments are optional and should not be handled. */
-        if self.extra_args {
-            return Some(self);
-        }
-
-        /* Recursive case: iterate until reaching the last subcommand */
-        for child in &self.children {
-            if child.cmd == cmd[0] {
-                return child.find_command(&cmd[1..]);
-            }
-        }
-
-        None
-    }
-
-    pub fn show_help(&self, context: &[&str]) {
-        if context.is_empty() {
-            println!("? A budget tracker CLI application.\n\
-                ?  Available commands:");
-        } else {
-            println!("? HELP: {}", context.join(" "));
-        }
-
-        println!("?   {}", self.description);
-        
-        if !self.children.is_empty() {
-            println!("? SUBCOMMANDS: ");
-            for child in &self.children {
-                println!("?   {} - {}", child.cmd, child.description);
             }
         }
     }
