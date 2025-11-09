@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     database::{
-        config::TrackerConfig, 
+        config::tracker::TrackerConfig, 
         periods::Period
     }, error::BtrError, utils::Utils
 };
@@ -28,9 +28,14 @@ pub struct ExpenseSheet {
 
 impl TrackerManager {
     pub fn new() -> Self {
+        let config = match TrackerConfig::new() {
+            Ok(cfg) => cfg,
+            Err(e) => panic!("Failed to extract tracker configuration: {}", e),
+        };
+
         Self {
             active_sheet: None,
-            config: TrackerConfig::new()
+            config: config
         }
     }
 
@@ -55,7 +60,7 @@ impl TrackerManager {
         };
 
         let json = serde_json::to_string_pretty(&empty_sheet)
-            .expect("I think I have to modify the return value there. Probably returning a string would be a good thing");
+            .map_err(|e| BtrError::InvalidData(Some(format!("Failed to serialize a JSON data: {}", e))))?;
 
         file.write_all(json.as_bytes())?;
 
