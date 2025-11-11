@@ -1,29 +1,31 @@
-use std::{fs::{self, File}, io::Write};
 use serde::{Deserialize, Serialize};
+use std::{
+    fs::{self, File},
+    io::Write,
+};
 
 use crate::{
     database::{
         config::{expenses::ExpenseCategory, tracker::TrackerConfig},
-        periods::Period
-    }, error::BtrError, utils::Utils
+        periods::Period,
+    },
+    error::BtrError,
+    utils::Utils,
 };
-
 
 pub struct TrackerManager {
     active_sheet: Option<ExpenseSheet>,
-    config: TrackerConfig
+    config: TrackerConfig,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct ExpenseRecord {
-
-}
+pub struct ExpenseRecord {}
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ExpenseSheet {
     pub name: String, /* TODO: Try to modify to &str */
     pub period: Period,
-    pub expenses: Vec<ExpenseRecord> 
+    pub expenses: Vec<ExpenseRecord>,
 }
 
 impl TrackerManager {
@@ -35,11 +37,16 @@ impl TrackerManager {
 
         Self {
             active_sheet: None,
-            config: config
+            config: config,
         }
     }
 
-    pub fn new_sheet(&mut self, sheet_name: &str, period: Period, truncate: bool) -> Result<(), BtrError> {
+    pub fn new_sheet(
+        &mut self,
+        sheet_name: &str,
+        period: Period,
+        truncate: bool,
+    ) -> Result<(), BtrError> {
         let utils = Utils::new();
 
         /* Check if the directory with the sheets exists. */
@@ -49,8 +56,7 @@ impl TrackerManager {
         }
 
         /* Setup a path to a sheet. */
-        let sheet_path = sheet_dir
-            .join(format!("{}.json", sheet_name));
+        let sheet_path = sheet_dir.join(format!("{}.json", sheet_name));
 
         let mut file = if truncate {
             File::create(sheet_path)?
@@ -58,14 +64,15 @@ impl TrackerManager {
             File::create_new(sheet_path)?
         };
 
-        let empty_sheet = ExpenseSheet{
+        let empty_sheet = ExpenseSheet {
             name: sheet_name.to_string(),
             period: period,
-            expenses: Vec::new()
+            expenses: Vec::new(),
         };
 
-        let json = serde_json::to_string_pretty(&empty_sheet)
-            .map_err(|e| BtrError::InvalidData(Some(format!("Failed to serialize a JSON data: {}", e))))?;
+        let json = serde_json::to_string_pretty(&empty_sheet).map_err(|e| {
+            BtrError::InvalidData(Some(format!("Failed to serialize a JSON data: {}", e)))
+        })?;
 
         file.write_all(json.as_bytes())?;
 
@@ -76,4 +83,22 @@ impl TrackerManager {
         self.config.expenses()
     }
 
+    pub fn set_active_sheet(&mut self, sheet_name: &str) -> Result<(), BtrError> {
+        let utils = Utils::new();
+
+        let sheet_path = utils.sheets_dir().join(format!("{}.json", sheet_name));
+
+        let sheet_content = fs::read_to_string(&sheet_path)?;
+        let active_sheet: ExpenseSheet = serde_json::from_str(&sheet_content).map_err(|e| {
+            BtrError::InvalidData(Some(format!("Failed to deserialize a sheet data: {}", e)))
+        })?;
+
+        self.active_sheet = Some(active_sheet);
+
+        Ok(())
+    }
+
+    pub fn get_active_sheet(&self) -> &Option<ExpenseSheet> {
+        &self.active_sheet
+    }
 }

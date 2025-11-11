@@ -56,7 +56,12 @@ impl TrackerCli {
                         "List all available expense categories.",
                         Some(Self::show_categories_handler),
                     )),
-            );
+            )
+            .add_child(CommandNode::new(
+                "select",
+                "Select an active sheet which will be updated with a new expenses logs.",
+                Some(Self::select_handler),
+            ));
 
         Self {
             buffer: String::new(),
@@ -158,14 +163,24 @@ impl TrackerCli {
         Self::create_sheet_with_prompt(&mut cli.tracker_manager, &sheet_name, period)
     }
 
-    fn show_sheets_handler(_cli: &mut TrackerCli, _args: &[&str]) -> Result<(), BtrError> {
+    fn show_sheets_handler(cli: &mut TrackerCli, _args: &[&str]) -> Result<(), BtrError> {
         let utils = Utils::new();
+        let active_sheet = cli.tracker_manager.get_active_sheet();
 
         println!("? SHEETS:");
         for dir_entry in utils.sheets_dir().read_dir()? {
             if let Ok(sheet_path) = dir_entry {
                 if let Some(sheet_name) = sheet_path.file_name().to_str() {
-                    println!(">  {}", sheet_name);
+                    let is_active = active_sheet
+                        .as_ref()
+                        .map(|s| format!("{}.json", s.name) == sheet_name)
+                        .unwrap_or(false);
+
+                    if is_active {
+                        println!(">  {} (ACTIVE)", sheet_name);
+                    } else {
+                        println!(">  {}", sheet_name);
+                    }
                 }
             }
         }
@@ -178,6 +193,17 @@ impl TrackerCli {
             println!(">  {}", category.name);
             if let Some(description) = &category.description {
                 println!("   {}", description);
+            }
+        }
+
+        Ok(())
+    }
+
+    fn select_handler(cli: &mut TrackerCli, args: &[&str]) -> Result<(), BtrError> {
+        match args.len() {
+            2 => cli.tracker_manager.set_active_sheet(&args[1])?,
+            _ => {
+                eprintln!("! Wrong input. Sheet name must be provided.")
             }
         }
 
@@ -204,7 +230,12 @@ impl TrackerCli {
                 }
             } else if let Some(cmd_node) = self.cmd_tree.find_command(&tokens) {
                 if let Some(handler_fn) = cmd_node.handler {
-                    handler_fn(self, &tokens).unwrap();
+                    match handler_fn(self, &tokens) {
+                        Err(e) => {
+                            eprintln!("! Operation finished with an error:\n!   {}", e);
+                        }
+                        _ => {}
+                    }
                 }
             } else {
                 eprintln!("> FAILED: Unknown command: {}", tokens.join(" "));
