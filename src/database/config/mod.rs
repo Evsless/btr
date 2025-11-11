@@ -1,2 +1,2 @@
 pub mod tracker;
-mod expenses;
+pub mod expenses;

@@ -1,2 +1,2 @@
-mod cmd;
 pub mod cli;
+mod cmd;

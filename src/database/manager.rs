@@ -1,9 +1,9 @@
-use std::{fs::File, io::Write};
+use std::{fs::{self, File}, io::Write};
 use serde::{Deserialize, Serialize};
 
 use crate::{
     database::{
-        config::tracker::TrackerConfig, 
+        config::{expenses::ExpenseCategory, tracker::TrackerConfig},
         periods::Period
     }, error::BtrError, utils::Utils
 };
@@ -42,9 +42,14 @@ impl TrackerManager {
     pub fn new_sheet(&mut self, sheet_name: &str, period: Period, truncate: bool) -> Result<(), BtrError> {
         let utils = Utils::new();
 
-        /* Setup a path to a sheet based on a configuration */
-        let sheet_path = utils.home_dir()
-            .join(utils.btr_dir())
+        /* Check if the directory with the sheets exists. */
+        let sheet_dir = utils.sheets_dir();
+        if !sheet_dir.exists() {
+            fs::create_dir_all(&sheet_dir)?;
+        }
+
+        /* Setup a path to a sheet. */
+        let sheet_path = sheet_dir
             .join(format!("{}.json", sheet_name));
 
         let mut file = if truncate {
@@ -65,6 +70,10 @@ impl TrackerManager {
         file.write_all(json.as_bytes())?;
 
         Ok(())
+    }
+
+    pub fn get_categories(&self) -> &[ExpenseCategory] {
+        self.config.expenses()
     }
 
 }

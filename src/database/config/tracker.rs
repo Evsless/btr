@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TrackerConfig {
-    pub expenses: Vec<ExpenseCategory>
+    expenses: Vec<ExpenseCategory>
 }
 
 impl TrackerConfig {
@@ -82,4 +82,10 @@ impl TrackerConfig {
 
         Ok(Self{ expenses })
     }
+
+
+    pub fn expenses(&self) -> &[ExpenseCategory] {
+        &self.expenses
+    }
+
 }
