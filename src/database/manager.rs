@@ -5,12 +5,12 @@ use std::{
 };
 
 use crate::{
+    utils,
     database::{
         config::{expenses::ExpenseCategory, tracker::TrackerConfig},
         periods::Period,
     },
     error::BtrError,
-    utils::Utils,
 };
 
 pub struct TrackerManager {
@@ -47,10 +47,8 @@ impl TrackerManager {
         period: Period,
         truncate: bool,
     ) -> Result<(), BtrError> {
-        let utils = Utils::new();
-
         /* Check if the directory with the sheets exists. */
-        let sheet_dir = utils.sheets_dir();
+        let sheet_dir = utils::sheets_dir();
         if !sheet_dir.exists() {
             fs::create_dir_all(&sheet_dir)?;
         }
@@ -84,9 +82,7 @@ impl TrackerManager {
     }
 
     pub fn set_active_sheet(&mut self, sheet_name: &str) -> Result<(), BtrError> {
-        let utils = Utils::new();
-
-        let sheet_path = utils.sheets_dir().join(format!("{}.json", sheet_name));
+        let sheet_path = utils::sheets_dir().join(format!("{}.json", sheet_name));
 
         let sheet_content = fs::read_to_string(&sheet_path)?;
         let active_sheet: ExpenseSheet = serde_json::from_str(&sheet_content).map_err(|e| {

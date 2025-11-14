@@ -1,7 +1,8 @@
 use std::{fs::{File, read_to_string}, path::PathBuf, vec};
 use crate::{
+    utils,
     database::config::expenses::{ExpenseCategory, ExpensesConfigRaw},
-    error::BtrError, utils::Utils
+    error::BtrError, 
 };
 
 use toml;
@@ -32,11 +33,7 @@ impl TrackerConfig {
     }
 
     pub fn new() -> Result<Self, BtrError> {
-        let utils = Utils::new();
-
-        let cfg_file = utils.home_dir()
-            .join(utils.btr_dir())
-            .join("cfg.toml");
+        let cfg_file = utils::btr_dir().join("cfg.toml");
 
         if !cfg_file.exists() {
             File::create_new(&cfg_file)?;
@@ -51,7 +48,7 @@ impl TrackerConfig {
         let expenses = match config.expenses_cfg {
             Some(exp_cfg_path) => {
                 let expenses_path = if let Ok(stripped) = exp_cfg_path.strip_prefix("~/") {
-                    utils.home_dir().join(stripped)
+                    utils::home_dir().join(stripped)
                 } else {
                     PathBuf::from(&exp_cfg_path)
                 };

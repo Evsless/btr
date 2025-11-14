@@ -1,50 +1,20 @@
 use home;
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::OnceLock};
 
-const DEFAULT_BTR_DIR: &str = ".btr";
-const DEFAULT_SHEETS_DIR: &str = "sheets";
+static HOME_DIR: OnceLock<PathBuf> = OnceLock::new();
 
-pub struct Utils {
-    home_dir: PathBuf,
-    btr_dir: PathBuf,
-    sheets_dir: PathBuf,
+pub fn home_dir() -> &'static PathBuf {
+    HOME_DIR.get_or_init(|| {
+        home::home_dir()
+            .filter(|p| !p.as_os_str().is_empty())
+            .expect("Unable to get home directory.")
+    })
 }
 
-impl Utils {
-    fn find_home_dir() -> PathBuf {
-        match home::home_dir() {
-            Some(mut path) => {
-                if !path.as_mut_os_str().is_empty() {
-                    path
-                } else {
-                    panic!("> FATAL ERROR: The path to home directory is empty on your system")
-                }
-            }
-            None => {
-                panic!("> FATAL ERROR: Unable to get a home direc")
-            }
-        }
-    }
+pub fn btr_dir() -> PathBuf {
+    home_dir().join(".btr")
+}
 
-    pub fn new() -> Self {
-        Self {
-            home_dir: Self::find_home_dir(),
-            btr_dir: PathBuf::from(DEFAULT_BTR_DIR),
-            sheets_dir: PathBuf::from(DEFAULT_SHEETS_DIR),
-        }
-    }
-
-    pub fn home_dir(&self) -> &PathBuf {
-        &self.home_dir
-    }
-
-    pub fn btr_dir(&self) -> &PathBuf {
-        &self.btr_dir
-    }
-
-    pub fn sheets_dir(&self) -> PathBuf {
-        self.home_dir
-            .join(&self.btr_dir)
-            .join(&self.sheets_dir)
-    }
+pub fn sheets_dir() -> PathBuf {
+    btr_dir().join("sheets")
 }

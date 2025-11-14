@@ -1,9 +1,10 @@
-use crate::{
+use crate::{ 
+    utils,
     console::cmd::CommandNode,
     database::{manager::TrackerManager, periods::Period},
     error::{BtrError, BtrErrorKind},
-    utils::Utils,
 };
+
 use chrono::{Datelike, Utc};
 use std::io::{stdin, stdout, ErrorKind, Write};
 
@@ -164,11 +165,10 @@ impl TrackerCli {
     }
 
     fn show_sheets_handler(cli: &mut TrackerCli, _args: &[&str]) -> Result<(), BtrError> {
-        let utils = Utils::new();
         let active_sheet = cli.tracker_manager.get_active_sheet();
 
         println!("? SHEETS:");
-        for dir_entry in utils.sheets_dir().read_dir()? {
+        for dir_entry in utils::sheets_dir().read_dir()? {
             if let Ok(sheet_path) = dir_entry {
                 if let Some(sheet_name) = sheet_path.file_name().to_str() {
                     let is_active = active_sheet
