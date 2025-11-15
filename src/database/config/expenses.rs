@@ -1,5 +1,5 @@
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use serde::{Serialize, Deserialize};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ExpensesConfigRaw {
@@ -9,5 +9,5 @@ pub struct ExpensesConfigRaw {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ExpenseCategory {
     pub name: String,
-    pub description: Option<String>
+    pub description: Option<String>,
 }

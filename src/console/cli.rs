@@ -1,12 +1,12 @@
-use crate::{ 
-    utils,
+use crate::{
     console::cmd::CommandNode,
     database::{manager::TrackerManager, periods::Period},
     error::{BtrError, BtrErrorKind},
+    utils,
 };
 
 use chrono::{Datelike, Utc};
-use std::io::{stdin, stdout, ErrorKind, Write};
+use std::io::{ErrorKind, Write, stdin, stdout};
 
 pub struct TrackerCli {
     buffer: String,
@@ -15,7 +15,7 @@ pub struct TrackerCli {
 }
 
 impl TrackerCli {
-    pub fn new() -> Self {
+    pub fn new() -> Result<Self, BtrError> {
         let cmd_tree = CommandNode::new("root", "Budget tracker CLI.", None)
             .add_child(
                 CommandNode::new("add", "Add a new record to a budget tracker.", None)
@@ -64,11 +64,11 @@ impl TrackerCli {
                 Some(Self::select_handler),
             ));
 
-        Self {
+        Ok(Self {
             buffer: String::new(),
             cmd_tree: cmd_tree,
-            tracker_manager: TrackerManager::new(),
-        }
+            tracker_manager: TrackerManager::new()?,
+        })
     }
 
     fn add_expense_handler(cli: &mut TrackerCli, args: &[&str]) -> Result<(), BtrError> {

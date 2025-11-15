@@ -5,12 +5,12 @@ use std::{
 };
 
 use crate::{
-    utils,
     database::{
         config::{expenses::ExpenseCategory, tracker::TrackerConfig},
         periods::Period,
     },
     error::BtrError,
+    utils,
 };
 
 pub struct TrackerManager {
@@ -29,16 +29,24 @@ pub struct ExpenseSheet {
 }
 
 impl TrackerManager {
-    pub fn new() -> Self {
+    pub fn new() -> Result<Self, BtrError> {
         let config = match TrackerConfig::new() {
             Ok(cfg) => cfg,
             Err(e) => panic!("Failed to extract tracker configuration: {}", e),
         };
 
-        Self {
-            active_sheet: None,
-            config: config,
-        }
+        let active_sheet = if let Some(active_sheet_path) = config.load_active_sheet() {
+            let active_sheet_str = fs::read_to_string(&active_sheet_path)?;
+
+            serde_json::from_str::<ExpenseSheet>(&active_sheet_str).ok()
+        } else {
+            None
+        };
+
+        Ok(Self {
+            active_sheet,
+            config,
+        })
     }
 
     pub fn new_sheet(
@@ -90,6 +98,9 @@ impl TrackerManager {
         })?;
 
         self.active_sheet = Some(active_sheet);
+
+        self.config
+            .update_state(|state| state.selected_sheet = Some(sheet_path))?;
 
         Ok(())
     }

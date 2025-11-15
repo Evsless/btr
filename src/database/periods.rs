@@ -1,17 +1,19 @@
+use crate::error::BtrError;
 use chrono::{Datelike, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
-use crate::error::BtrError;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Period {
     pub start: NaiveDate,
-    pub end: NaiveDate
+    pub end: NaiveDate,
 }
 
 impl Period {
     pub fn new(start: NaiveDate, end: NaiveDate) -> Result<Self, BtrError> {
         if start > end {
-            return Err(BtrError::InvalidPeriod(String::from("Period beggining must be before the period end.")));
+            return Err(BtrError::InvalidPeriod(String::from(
+                "Period beggining must be before the period end.",
+            )));
         }
 
         Ok(Self { start, end })
@@ -31,11 +33,12 @@ impl Period {
 
     pub fn month(month: u32, year: i32) -> Result<Self, BtrError> {
         if !(1..=12).contains(&month) {
-            return Err(BtrError::InvalidData(Some(String::from("String must be in range from 1 to 12."))));
+            return Err(BtrError::InvalidData(Some(String::from(
+                "String must be in range from 1 to 12.",
+            ))));
         }
 
-        let start = NaiveDate::from_ymd_opt(year, month, 1)
-            .ok_or(BtrError::InvalidData(None))?;
+        let start = NaiveDate::from_ymd_opt(year, month, 1).ok_or(BtrError::InvalidData(None))?;
 
         let end = if month == 12 {
             NaiveDate::from_ymd_opt(year + 1, 1, 1)
@@ -49,8 +52,7 @@ impl Period {
     }
 
     pub fn year(year: i32) -> Result<Self, BtrError> {
-        let start = NaiveDate::from_ymd_opt(year, 1, 1)
-            .ok_or(BtrError::InvalidData(None))?;
+        let start = NaiveDate::from_ymd_opt(year, 1, 1).ok_or(BtrError::InvalidData(None))?;
 
         let end = NaiveDate::from_ymd_opt(year + 1, 1, 1)
             .and_then(|d| d.pred_opt())

@@ -12,7 +12,7 @@ pub enum BtrError {
 pub enum BtrErrorKind {
     Io(io::ErrorKind),
     InvalidData,
-    InvalidPeriod
+    InvalidPeriod,
 }
 
 impl BtrError {
@@ -20,12 +20,10 @@ impl BtrError {
         match self {
             BtrError::Io(e) => BtrErrorKind::Io(e.kind()),
             BtrError::InvalidData(_) => BtrErrorKind::InvalidData,
-            BtrError::InvalidPeriod(_) => BtrErrorKind::InvalidPeriod
+            BtrError::InvalidPeriod(_) => BtrErrorKind::InvalidPeriod,
         }
     }
 }
-
-
 
 impl fmt::Display for BtrError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> fmt::Result {
@@ -33,14 +31,13 @@ impl fmt::Display for BtrError {
             BtrError::Io(e) => write!(f, "IO error: {}", e),
             BtrError::InvalidData(None) => write!(f, "Invalid data"),
             BtrError::InvalidData(Some(msg)) => write!(f, "Invalid data: {}", msg),
-            BtrError::InvalidPeriod(msg) => write!(f, "Invalid period: {}", msg)
+            BtrError::InvalidPeriod(msg) => write!(f, "Invalid period: {}", msg),
         }
     }
-    
 }
 
 impl From<io::Error> for BtrError {
     fn from(err: io::Error) -> Self {
         BtrError::Io(err)
-    } 
+    }
 }
