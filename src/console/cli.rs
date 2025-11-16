@@ -22,13 +22,8 @@ impl TrackerCli {
                         Some(handlers::add_expense_handler),
                     ))
                     .add_child(CommandNode::new(
-                        "month",
-                        "Add a new month sheet to an expenses database.",
-                        Some(handlers::add_sheet_handler),
-                    ))
-                    .add_child(CommandNode::new(
-                        "year",
-                        "Add a new year sheet to an expenses database.",
+                        "sheet",
+                        "Add a new expense sheet to an tracker database.",
                         Some(handlers::add_sheet_handler),
                     )),
             )

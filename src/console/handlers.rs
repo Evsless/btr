@@ -74,7 +74,11 @@ pub fn add_expense_handler(cli: &mut TrackerCli, _args: &[&str]) -> Result<(), B
     };
 
     /* Use the clone() for now. However you might consider a better solution there. */
-    let new_expense = ExpenseRecord::new(categories[category_idx].name.clone(), amount);
+    let new_expense = ExpenseRecord::new(
+        categories[category_idx].name.clone(),
+        amount,
+        Utc::now().date_naive(),
+    );
     cli.tracker_manager.add_expense_record(new_expense)?;
 
     println!("!> Expense added!");
@@ -106,40 +110,18 @@ pub fn show_sheets_handler(cli: &mut TrackerCli, _args: &[&str]) -> Result<(), B
 }
 
 pub fn add_sheet_handler(cli: &mut TrackerCli, args: &[&str]) -> Result<(), BtrError> {
-    let sheet_type = if args.iter().any(|&x| x == "month") {
-        "month"
-    } else if args.iter().any(|&x| x == "year") {
-        "year"
-    } else {
-        return Err(BtrError::InvalidData(Some(String::from(
-            "Invalid operation",
-        ))));
-    };
-
     /* Determine a period */
-    /* TODO: Should I invent some separate class to handle the period calculations? */
     let date = Utc::now().date_naive();
 
-    let period = match sheet_type {
-        "month" => Period::current_month()
-            .expect("Getting a current month. No option to be outside the month range."),
-        "year" => Period::current_year()
-            .expect("Getting a current year. No option to hit a negative year."),
-        _ => unreachable!(),
-    };
+    let period = Period::current_month()?;
 
     /* Determine a sheet name */
-    let pos = args.iter().position(|&x| x == sheet_type).unwrap();
-    let sheet_name = if args.len() > pos + 1 {
+    let sheet_name = if args.len() > 2 {
         /* Special case: custom sheet name */
-        args[pos + 1..].join(" ")
+        args[2..].join(" ")
     } else {
-        /* Default case. Prepare a sheet name based on its type. */
-        match sheet_type {
-            "month" => format!("{}-{}", date.month(), date.year()),
-            "year" => date.year().to_string(),
-            _ => unreachable!(),
-        }
+        /* Default case. */
+        format!("{:02}-{}", date.month(), date.year())
     };
 
     create_sheet_with_prompt(&mut cli.tracker_manager, &sheet_name, period)

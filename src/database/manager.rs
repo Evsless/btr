@@ -5,7 +5,7 @@ use std::{
 
 use crate::{
     database::{
-        config::tracker::TrackerConfig,
+        config::TrackerConfig,
         expense::{ExpenseCategory, ExpenseRecord, ExpenseSheet},
         periods::Period,
     },
@@ -107,6 +107,7 @@ impl TrackerManager {
                 sheet.save_sheet()?;
             }
             _ => {
+                println!("Here?");
                 return Err(BtrError::InvalidData(None));
                 /* I would return a BtrError there, signalizing that the conditions not satisfied */
             }

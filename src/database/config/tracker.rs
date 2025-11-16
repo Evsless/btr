@@ -1,5 +1,5 @@
 use crate::{
-    database::config::state::TrackerState,
+    database::config::TrackerState,
     database::expense::{ExpenseCategory, ExpensesConfigRaw},
     error::BtrError,
     utils,
