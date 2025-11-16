@@ -1,6 +1,6 @@
 use crate::{
     console::cli::TrackerCli,
-    database::{manager::TrackerManager, periods::Period},
+    database::{expense::ExpenseRecord, manager::TrackerManager, periods::Period},
     error::{BtrError, BtrErrorKind},
     utils,
 };
@@ -17,7 +17,7 @@ fn create_sheet_with_prompt(
         if e.kind() == BtrErrorKind::Io(ErrorKind::AlreadyExists) {
             loop {
                 println!(
-                    "! Sheet '{}.json' already exists. Overwrite? [Y/N]",
+                    "!> Sheet '{}.json' already exists. Overwrite? [Y/N]",
                     sheet_name
                 );
                 let user_input = TrackerCli::user_input()?;
@@ -31,7 +31,7 @@ fn create_sheet_with_prompt(
                         break;
                     }
                     _ => {
-                        println!("! Unsupported input: '{}'", user_input.trim());
+                        println!("!> Unsupported input: '{}'", user_input.trim());
                     }
                 }
             }
@@ -45,8 +45,40 @@ fn create_sheet_with_prompt(
     Ok(())
 }
 
-pub fn add_expense_handler(_cli: &mut TrackerCli, _args: &[&str]) -> Result<(), BtrError> {
-    println!("Enteren add handler!");
+pub fn add_expense_handler(cli: &mut TrackerCli, _args: &[&str]) -> Result<(), BtrError> {
+    let categories = cli.tracker_manager.get_categories();
+
+    println!("!> Select a category:");
+    for (idx, category) in categories.iter().enumerate() {
+        println!("> {}: {}", idx + 1, category.name);
+    }
+
+    let category_idx = loop {
+        let input = TrackerCli::user_input()?;
+        match input.trim().parse::<usize>() {
+            Ok(idx) if idx > 0 && idx < categories.len() => break idx - 1,
+            _ => println!(
+                "! Invalid input. Select a number between 1 and {}.",
+                categories.len()
+            ),
+        }
+    };
+
+    println!("!> Enter amount:");
+    let amount = loop {
+        let input = TrackerCli::user_input()?;
+        match input.trim().parse::<f32>() {
+            Ok(num) if num > 0.0 => break num,
+            _ => println!("! Invalid input. The value must be greated then 0."),
+        }
+    };
+
+    /* Use the clone() for now. However you might consider a better solution there. */
+    let new_expense = ExpenseRecord::new(categories[category_idx].name.clone(), amount);
+    cli.tracker_manager.add_expense_record(new_expense)?;
+
+    println!("!> Expense added!");
+
     Ok(())
 }
 
@@ -56,14 +88,14 @@ pub fn show_sheets_handler(cli: &mut TrackerCli, _args: &[&str]) -> Result<(), B
     println!("? SHEETS:");
     for dir_entry in utils::sheets_dir().read_dir()? {
         if let Ok(sheet_path) = dir_entry {
-            if let Some(sheet_name) = sheet_path.file_name().to_str() {
+            if let Some(sheet_name) = sheet_path.path().file_stem().and_then(|f| f.to_str()) {
                 let is_active = active_sheet
                     .as_ref()
-                    .map(|s| format!("{}.json", s.name) == sheet_name)
+                    .map(|s| s.name == sheet_name)
                     .unwrap_or(false);
 
                 if is_active {
-                    println!(">  {} (ACTIVE)", sheet_name);
+                    println!(">  {:<20} (ACTIVE)", sheet_name);
                 } else {
                     println!(">  {}", sheet_name);
                 }

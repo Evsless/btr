@@ -1,12 +1,12 @@
-use serde::{Deserialize, Serialize};
 use std::{
-    fs::{self, File},
+    fs::{File, create_dir_all, read_to_string},
     io::Write,
 };
 
 use crate::{
     database::{
-        config::{expenses::ExpenseCategory, tracker::TrackerConfig},
+        config::tracker::TrackerConfig,
+        expense::{ExpenseCategory, ExpenseRecord, ExpenseSheet},
         periods::Period,
     },
     error::BtrError,
@@ -18,16 +18,6 @@ pub struct TrackerManager {
     config: TrackerConfig,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct ExpenseRecord {}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct ExpenseSheet {
-    pub name: String, /* TODO: Try to modify to &str */
-    pub period: Period,
-    pub expenses: Vec<ExpenseRecord>,
-}
-
 impl TrackerManager {
     pub fn new() -> Result<Self, BtrError> {
         let config = match TrackerConfig::new() {
@@ -36,7 +26,7 @@ impl TrackerManager {
         };
 
         let active_sheet = if let Some(active_sheet_path) = config.load_active_sheet() {
-            let active_sheet_str = fs::read_to_string(&active_sheet_path)?;
+            let active_sheet_str = read_to_string(&active_sheet_path)?;
 
             serde_json::from_str::<ExpenseSheet>(&active_sheet_str).ok()
         } else {
@@ -58,7 +48,7 @@ impl TrackerManager {
         /* Check if the directory with the sheets exists. */
         let sheet_dir = utils::sheets_dir();
         if !sheet_dir.exists() {
-            fs::create_dir_all(&sheet_dir)?;
+            create_dir_all(&sheet_dir)?;
         }
 
         /* Setup a path to a sheet. */
@@ -92,7 +82,7 @@ impl TrackerManager {
     pub fn set_active_sheet(&mut self, sheet_name: &str) -> Result<(), BtrError> {
         let sheet_path = utils::sheets_dir().join(format!("{}.json", sheet_name));
 
-        let sheet_content = fs::read_to_string(&sheet_path)?;
+        let sheet_content = read_to_string(&sheet_path)?;
         let active_sheet: ExpenseSheet = serde_json::from_str(&sheet_content).map_err(|e| {
             BtrError::InvalidData(Some(format!("Failed to deserialize a sheet data: {}", e)))
         })?;
@@ -107,5 +97,21 @@ impl TrackerManager {
 
     pub fn get_active_sheet(&self) -> &Option<ExpenseSheet> {
         &self.active_sheet
+    }
+
+    pub fn add_expense_record(&mut self, expense_record: ExpenseRecord) -> Result<(), BtrError> {
+        match &mut self.active_sheet {
+            Some(sheet) => {
+                sheet.expenses.push(expense_record);
+
+                sheet.save_sheet()?;
+            }
+            _ => {
+                return Err(BtrError::InvalidData(None));
+                /* I would return a BtrError there, signalizing that the conditions not satisfied */
+            }
+        };
+
+        Ok(())
     }
 }
