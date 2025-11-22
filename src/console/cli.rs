@@ -27,11 +27,23 @@ impl TrackerCli {
                         Some(handlers::add_sheet_handler),
                     )),
             )
-            .add_child(CommandNode::new(
-                "remove",
-                "Remove a record from an expenses database.",
-                None,
-            ))
+            .add_child(
+                CommandNode::new(
+                    "delete",
+                    "Removes provided element from the tracker database.",
+                    None,
+                )
+                .add_child(CommandNode::new(
+                    "sheet",
+                    "Removes selected expense sheet from the tracker database",
+                    Some(handlers::delete_sheet_handler),
+                ))
+                .add_child(CommandNode::new(
+                    "expense",
+                    "Removes selected expense record from the active sheet",
+                    Some(handlers::delete_expense_handler),
+                )),
+            )
             .add_child(CommandNode::new(
                 "modify",
                 "Modify an existing record in an expenses database",

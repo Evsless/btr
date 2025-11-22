@@ -1,11 +1,52 @@
 use crate::{
     console::cli::TrackerCli,
-    database::{expense::ExpenseRecord, manager::TrackerManager, periods::Period},
+    database::{
+        expense::{ExpenseRecord, ExpenseSheet},
+        manager::TrackerManager,
+        periods::Period,
+    },
     error::{BtrError, BtrErrorKind},
     utils,
 };
 use chrono::{Datelike, Utc};
-use std::io::ErrorKind;
+use std::{fs, io::ErrorKind};
+
+fn get_sheet_list() -> Result<Vec<String>, BtrError> {
+    let entries = utils::sheets_dir().read_dir()?;
+
+    let sheet_list: Vec<String> = entries
+        .filter_map(|e| {
+            let path = e.ok()?.path();
+            if path.is_file() {
+                path.file_stem()
+                    .and_then(|f| f.to_str().map(|s| s.to_owned()))
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    Ok(sheet_list)
+}
+
+fn print_sheet_list(active_sheet: &Option<ExpenseSheet>) -> Result<(), BtrError> {
+    let sheet_list = get_sheet_list()?;
+
+    for (idx, sheet_name) in sheet_list.iter().enumerate() {
+        let is_active = active_sheet
+            .as_ref()
+            .map(|s| s.name == *sheet_name)
+            .unwrap_or(false);
+
+        if is_active {
+            println!(">  {}. {:<20} (ACTIVE)", idx, sheet_name);
+        } else {
+            println!(">  {}. {}", idx, sheet_name);
+        }
+    }
+
+    Ok(())
+}
 
 fn create_sheet_with_prompt(
     manager: &mut TrackerManager,
@@ -56,7 +97,7 @@ pub fn add_expense_handler(cli: &mut TrackerCli, _args: &[&str]) -> Result<(), B
     let category_idx = loop {
         let input = TrackerCli::user_input()?;
         match input.trim().parse::<usize>() {
-            Ok(idx) if idx > 0 && idx < categories.len() => break idx - 1,
+            Ok(idx) if idx >= 1 && idx <= categories.len() => break idx - 1,
             _ => println!(
                 "! Invalid input. Select a number between 1 and {}.",
                 categories.len()
@@ -90,22 +131,8 @@ pub fn show_sheets_handler(cli: &mut TrackerCli, _args: &[&str]) -> Result<(), B
     let active_sheet = cli.tracker_manager.get_active_sheet();
 
     println!("? SHEETS:");
-    for dir_entry in utils::sheets_dir().read_dir()? {
-        if let Ok(sheet_path) = dir_entry {
-            if let Some(sheet_name) = sheet_path.path().file_stem().and_then(|f| f.to_str()) {
-                let is_active = active_sheet
-                    .as_ref()
-                    .map(|s| s.name == sheet_name)
-                    .unwrap_or(false);
+    print_sheet_list(&active_sheet)?;
 
-                if is_active {
-                    println!(">  {:<20} (ACTIVE)", sheet_name);
-                } else {
-                    println!(">  {}", sheet_name);
-                }
-            }
-        }
-    }
     Ok(())
 }
 
@@ -141,11 +168,56 @@ pub fn show_categories_handler(cli: &mut TrackerCli, _args: &[&str]) -> Result<(
 
 pub fn select_handler(cli: &mut TrackerCli, args: &[&str]) -> Result<(), BtrError> {
     match args.len() {
-        2 => cli.tracker_manager.set_active_sheet(&args[1])?,
+        3 => {
+            cli.tracker_manager.set_active_sheet(Some(&args[2]))?
+        },
         _ => {
             eprintln!("! Wrong input. Sheet name must be provided.")
         }
     }
+
+    Ok(())
+}
+
+pub fn delete_sheet_handler(cli: &mut TrackerCli, _args: &[&str]) -> Result<(), BtrError> {
+    let active_sheet = cli.tracker_manager.get_active_sheet();
+
+    println!("?> Select a sheet to be deleted:");
+    print_sheet_list(active_sheet)?;
+
+    let sheet_list = get_sheet_list()?;
+    let choise = loop {
+        let user_input = TrackerCli::user_input()?;
+
+        match user_input.trim().parse::<usize>() {
+            Ok(idx) if idx < sheet_list.len() => break idx,
+            _ => {
+                println!("!> Invalid input. Enter a number in range from 0 to {}.", sheet_list.len())
+            }
+        }
+    };
+
+    /* TO DO: Handle a case when the sheet was active. */
+    if let Some(sheet) = active_sheet {
+        if sheet.name == sheet_list[choise] {
+            cli.tracker_manager.set_active_sheet(None)?
+        }
+    }
+
+    fs::remove_file(utils::sheets_dir().join(format!("{}.json", sheet_list[choise])))?;
+    println!("> Sheet {} has been sucessfully removed.", sheet_list[choise]);
+
+    Ok(())
+}
+
+pub fn delete_expense_handler(cli: &mut TrackerCli, _args: &[&str]) -> Result<(), BtrError> {
+    let active_sheet = cli.tracker_manager.get_active_sheet();
+
+    println!("?> Select a sheet to be deleted:");
+
+    // loop {
+    //     let user_input = TrackerCli::user_input();
+    // }
 
     Ok(())
 }

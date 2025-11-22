@@ -79,18 +79,26 @@ impl TrackerManager {
         self.config.expenses()
     }
 
-    pub fn set_active_sheet(&mut self, sheet_name: &str) -> Result<(), BtrError> {
-        let sheet_path = utils::sheets_dir().join(format!("{}.json", sheet_name));
+    pub fn set_active_sheet(&mut self, sheet_name: Option<&str>) -> Result<(), BtrError> {
+        let new_active_sheet = match sheet_name {
+            Some(sheet) => {
+                let sheet_path = utils::sheets_dir().join(format!("{}.json", sheet));
+                
+                let sheet_content = read_to_string(&sheet_path)?;
+                let active_sheet: ExpenseSheet = serde_json::from_str(&sheet_content).map_err(|e| {
+                    BtrError::InvalidData(Some(format!("Failed to deserialize a sheet data: {}", e)))
+                })?;
+                
+                self.config.update_state(|state| state.selected_sheet = Some(sheet_path))?; 
+                Some(active_sheet)
+            },
+            None => {
+                self.config.update_state(|state| state.selected_sheet = None)?;
+                None
+            } 
+        };
 
-        let sheet_content = read_to_string(&sheet_path)?;
-        let active_sheet: ExpenseSheet = serde_json::from_str(&sheet_content).map_err(|e| {
-            BtrError::InvalidData(Some(format!("Failed to deserialize a sheet data: {}", e)))
-        })?;
-
-        self.active_sheet = Some(active_sheet);
-
-        self.config
-            .update_state(|state| state.selected_sheet = Some(sheet_path))?;
+        self.active_sheet = new_active_sheet;
 
         Ok(())
     }
