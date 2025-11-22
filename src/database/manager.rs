@@ -6,7 +6,7 @@ use std::{
 use crate::{
     database::{
         config::TrackerConfig,
-        expense::{ExpenseCategory, ExpenseRecord, ExpenseSheet},
+        expense::{ExpenseCategory, ExpenseSheet},
         periods::Period,
     },
     error::BtrError,
@@ -75,27 +75,29 @@ impl TrackerManager {
         Ok(())
     }
 
-    pub fn get_categories(&self) -> &[ExpenseCategory] {
-        self.config.expenses()
-    }
-
     pub fn set_active_sheet(&mut self, sheet_name: Option<&str>) -> Result<(), BtrError> {
         let new_active_sheet = match sheet_name {
             Some(sheet) => {
                 let sheet_path = utils::sheets_dir().join(format!("{}.json", sheet));
-                
+
                 let sheet_content = read_to_string(&sheet_path)?;
-                let active_sheet: ExpenseSheet = serde_json::from_str(&sheet_content).map_err(|e| {
-                    BtrError::InvalidData(Some(format!("Failed to deserialize a sheet data: {}", e)))
-                })?;
-                
-                self.config.update_state(|state| state.selected_sheet = Some(sheet_path))?; 
+                let active_sheet: ExpenseSheet =
+                    serde_json::from_str(&sheet_content).map_err(|e| {
+                        BtrError::InvalidData(Some(format!(
+                            "Failed to deserialize a sheet data: {}",
+                            e
+                        )))
+                    })?;
+
+                self.config
+                    .update_state(|state| state.selected_sheet = Some(sheet_path))?;
                 Some(active_sheet)
-            },
+            }
             None => {
-                self.config.update_state(|state| state.selected_sheet = None)?;
+                self.config
+                    .update_state(|state| state.selected_sheet = None)?;
                 None
-            } 
+            }
         };
 
         self.active_sheet = new_active_sheet;
@@ -107,20 +109,20 @@ impl TrackerManager {
         &self.active_sheet
     }
 
-    pub fn add_expense_record(&mut self, expense_record: ExpenseRecord) -> Result<(), BtrError> {
-        match &mut self.active_sheet {
-            Some(sheet) => {
-                sheet.expenses.push(expense_record);
+    pub fn get_categories(&self) -> &[ExpenseCategory] {
+        self.config.expenses()
+    }
 
-                sheet.save_sheet()?;
-            }
-            _ => {
-                println!("Here?");
-                return Err(BtrError::InvalidData(None));
-                /* I would return a BtrError there, signalizing that the conditions not satisfied */
-            }
-        };
+    pub fn update_active_sheet<F>(&mut self, updater: F) -> Result<(), BtrError>
+    where
+        F: FnOnce(&mut ExpenseSheet),
+    {
+        let sheet = self
+            .active_sheet
+            .as_mut()
+            .ok_or(BtrError::ActiveSheetNotSelected)?;
 
+        sheet.update(updater)?;
         Ok(())
     }
 }

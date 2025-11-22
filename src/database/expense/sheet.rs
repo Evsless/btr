@@ -25,4 +25,15 @@ impl ExpenseSheet {
 
         Ok(())
     }
+
+    pub fn update<F>(&mut self, updater: F) -> Result<(), BtrError>
+    where
+        F: FnOnce(&mut ExpenseSheet),
+    {
+        updater(self);
+
+        self.save_sheet()?;
+
+        Ok(())
+    }
 }

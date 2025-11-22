@@ -16,4 +16,16 @@ impl ExpenseRecord {
             logged_on,
         }
     }
+
+    pub fn category(&self) -> &str {
+        &self.category
+    }
+
+    pub fn amount(&self) -> f32 {
+        self.amount
+    }
+
+    pub fn logged_on(&self) -> NaiveDate {
+        self.logged_on
+    }
 }

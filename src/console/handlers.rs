@@ -120,7 +120,10 @@ pub fn add_expense_handler(cli: &mut TrackerCli, _args: &[&str]) -> Result<(), B
         amount,
         Utc::now().date_naive(),
     );
-    cli.tracker_manager.add_expense_record(new_expense)?;
+
+    cli.tracker_manager.update_active_sheet(|sheet| {
+        sheet.expenses.push(new_expense);
+    })?;
 
     println!("!> Expense added!");
 
@@ -168,9 +171,7 @@ pub fn show_categories_handler(cli: &mut TrackerCli, _args: &[&str]) -> Result<(
 
 pub fn select_handler(cli: &mut TrackerCli, args: &[&str]) -> Result<(), BtrError> {
     match args.len() {
-        3 => {
-            cli.tracker_manager.set_active_sheet(Some(&args[2]))?
-        },
+        3 => cli.tracker_manager.set_active_sheet(Some(&args[2]))?,
         _ => {
             eprintln!("! Wrong input. Sheet name must be provided.")
         }
@@ -192,7 +193,10 @@ pub fn delete_sheet_handler(cli: &mut TrackerCli, _args: &[&str]) -> Result<(), 
         match user_input.trim().parse::<usize>() {
             Ok(idx) if idx < sheet_list.len() => break idx,
             _ => {
-                println!("!> Invalid input. Enter a number in range from 0 to {}.", sheet_list.len())
+                println!(
+                    "!> Invalid input. Enter a number in range from 0 to {}.",
+                    sheet_list.len()
+                )
             }
         }
     };
@@ -205,19 +209,48 @@ pub fn delete_sheet_handler(cli: &mut TrackerCli, _args: &[&str]) -> Result<(), 
     }
 
     fs::remove_file(utils::sheets_dir().join(format!("{}.json", sheet_list[choise])))?;
-    println!("> Sheet {} has been sucessfully removed.", sheet_list[choise]);
+    println!(
+        "!> Sheet {} has been sucessfully removed.",
+        sheet_list[choise]
+    );
 
     Ok(())
 }
 
 pub fn delete_expense_handler(cli: &mut TrackerCli, _args: &[&str]) -> Result<(), BtrError> {
-    let active_sheet = cli.tracker_manager.get_active_sheet();
+    let Some(active_sheet) = cli.tracker_manager.get_active_sheet() else {
+        return Err(BtrError::ActiveSheetNotSelected);
+    };
 
-    println!("?> Select a sheet to be deleted:");
+    println!("?> Select an expense to be deleted:");
+    for (idx, expense) in active_sheet.expenses.iter().enumerate() {
+        println!(
+            "> {}. {:<20} {:<8} {}",
+            idx,
+            expense.category(),
+            expense.amount(),
+            expense.logged_on()
+        );
+    }
 
-    // loop {
-    //     let user_input = TrackerCli::user_input();
-    // }
+    let choise = loop {
+        let user_input = TrackerCli::user_input()?;
+
+        match user_input.trim().parse::<usize>() {
+            Ok(input) => break input,
+            _ => {
+                println!(
+                    "> Invalid input. Enter a number in range from 0 to {}",
+                    active_sheet.expenses.len()
+                )
+            }
+        }
+    };
+
+    cli.tracker_manager.update_active_sheet(|sheet| {
+        sheet.expenses.remove(choise);
+    })?;
+    println!("!> Expense has been sucesfully removed.");
 
     Ok(())
 }

@@ -6,6 +6,7 @@ pub enum BtrError {
     Io(io::Error),
     InvalidData(Option<String>),
     InvalidPeriod(String),
+    ActiveSheetNotSelected,
 }
 
 #[derive(Debug, PartialEq)]
@@ -13,6 +14,7 @@ pub enum BtrErrorKind {
     Io(io::ErrorKind),
     InvalidData,
     InvalidPeriod,
+    ActiveSheetNotSelected,
 }
 
 impl BtrError {
@@ -21,6 +23,7 @@ impl BtrError {
             BtrError::Io(e) => BtrErrorKind::Io(e.kind()),
             BtrError::InvalidData(_) => BtrErrorKind::InvalidData,
             BtrError::InvalidPeriod(_) => BtrErrorKind::InvalidPeriod,
+            BtrError::ActiveSheetNotSelected => BtrErrorKind::ActiveSheetNotSelected,
         }
     }
 }
@@ -32,6 +35,7 @@ impl fmt::Display for BtrError {
             BtrError::InvalidData(None) => write!(f, "Invalid data"),
             BtrError::InvalidData(Some(msg)) => write!(f, "Invalid data: {}", msg),
             BtrError::InvalidPeriod(msg) => write!(f, "Invalid period: {}", msg),
+            BtrError::ActiveSheetNotSelected => write!(f, "No active sheet selected"),
         }
     }
 }
