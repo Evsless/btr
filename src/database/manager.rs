@@ -60,11 +60,7 @@ impl TrackerManager {
             File::create_new(sheet_path)?
         };
 
-        let empty_sheet = ExpenseSheet {
-            name: sheet_name.to_string(),
-            period: period,
-            expenses: Vec::new(),
-        };
+        let empty_sheet = ExpenseSheet::new(sheet_name.to_string(), period, Vec::new());
 
         let json = serde_json::to_string_pretty(&empty_sheet).map_err(|e| {
             BtrError::InvalidData(Some(format!("Failed to serialize a JSON data: {}", e)))

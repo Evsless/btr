@@ -1,7 +1,7 @@
 use crate::{
     console::cli::TrackerCli,
     database::{
-        expense::{ExpenseRecord, ExpenseSheet},
+        expense::{self, ExpenseRecord, ExpenseSheet},
         manager::TrackerManager,
         periods::Period,
     },
@@ -9,7 +9,7 @@ use crate::{
     utils,
 };
 use chrono::{Datelike, Utc};
-use std::{fs, io::ErrorKind};
+use std::{collections::HashMap, fs, io::ErrorKind, thread::AccessError};
 
 fn get_sheet_list() -> Result<Vec<String>, BtrError> {
     let entries = utils::sheets_dir().read_dir()?;
@@ -86,6 +86,7 @@ fn create_sheet_with_prompt(
     Ok(())
 }
 
+/* ---------------------- ADD HANDLERS ---------------------- */
 pub fn add_expense_handler(cli: &mut TrackerCli, _args: &[&str]) -> Result<(), BtrError> {
     let categories = cli.tracker_manager.get_categories();
 
@@ -122,19 +123,10 @@ pub fn add_expense_handler(cli: &mut TrackerCli, _args: &[&str]) -> Result<(), B
     );
 
     cli.tracker_manager.update_active_sheet(|sheet| {
-        sheet.expenses.push(new_expense);
+        sheet.expenses_mut().push(new_expense);
     })?;
 
     println!("!> Expense added!");
-
-    Ok(())
-}
-
-pub fn show_sheets_handler(cli: &mut TrackerCli, _args: &[&str]) -> Result<(), BtrError> {
-    let active_sheet = cli.tracker_manager.get_active_sheet();
-
-    println!("? SHEETS:");
-    print_sheet_list(&active_sheet)?;
 
     Ok(())
 }
@@ -157,6 +149,7 @@ pub fn add_sheet_handler(cli: &mut TrackerCli, args: &[&str]) -> Result<(), BtrE
     create_sheet_with_prompt(&mut cli.tracker_manager, &sheet_name, period)
 }
 
+/* ---------------------- SHOW HANDLERS ---------------------- */
 pub fn show_categories_handler(cli: &mut TrackerCli, _args: &[&str]) -> Result<(), BtrError> {
     println!("? CATEGORIES:");
     for category in cli.tracker_manager.get_categories() {
@@ -165,6 +158,69 @@ pub fn show_categories_handler(cli: &mut TrackerCli, _args: &[&str]) -> Result<(
             println!("   {}", description);
         }
     }
+
+    Ok(())
+}
+
+pub fn show_expenses_handler(cli: &mut TrackerCli, _args: &[&str]) -> Result<(), BtrError> {
+    let Some(active_sheet) = cli.tracker_manager.get_active_sheet() else {
+        return Err(BtrError::ActiveSheetNotSelected);
+    };
+
+    #[derive(Default)]
+    struct CategoryStats {
+        total: f32,
+        count: usize,
+    }
+
+    let mut stats: HashMap<&str, CategoryStats> = HashMap::new();
+    let mut grand_total = 0.0;
+
+    for expense in active_sheet.expenses() {
+        let category_stat = stats.entry(expense.category()).or_default();
+
+        category_stat.total += expense.amount();
+        category_stat.count += 1;
+
+        grand_total += expense.amount();
+    }
+
+    println!("\n{:<22} {}", "EXPENSES SUMMARY FOR", active_sheet.name);
+    println!(
+        "{:<22} {} - {}",
+        "PERIOD",
+        active_sheet.period.start(),
+        active_sheet.period.end()
+    );
+    println!("{}\n", "-".repeat(60));
+
+    println!(
+        "{:<20} {:>12} {:>8}  {:>12}",
+        "Category", "Total", "Count", "Part Of Total"
+    );
+    println!("{}", "-".repeat(60));
+
+    let mut sorted = stats.iter().collect::<Vec<_>>();
+    sorted.sort_by(|&(_cat_a, stat_a), &(_cat_b, stat_b)| stat_b.total.total_cmp(&stat_a.total));
+
+    for (category, stat) in sorted {
+        let part_of_total = (stat.total / grand_total) * 100.0;
+        println!(
+            "{:<20} {:>9.2} PLN {:>8}  {:>10.1}%",
+            category, stat.total, stat.count, part_of_total
+        );
+    }
+    println!("{}", "-".repeat(60));
+    println!("{:<20} {:>9.2} PLN", "TOTAL", grand_total);
+
+    Ok(())
+}
+
+pub fn show_sheets_handler(cli: &mut TrackerCli, _args: &[&str]) -> Result<(), BtrError> {
+    let active_sheet = cli.tracker_manager.get_active_sheet();
+
+    println!("? SHEETS:");
+    print_sheet_list(&active_sheet)?;
 
     Ok(())
 }
@@ -180,6 +236,7 @@ pub fn select_handler(cli: &mut TrackerCli, args: &[&str]) -> Result<(), BtrErro
     Ok(())
 }
 
+/* ---------------------- DELETE HANDLERS ---------------------- */
 pub fn delete_sheet_handler(cli: &mut TrackerCli, _args: &[&str]) -> Result<(), BtrError> {
     let active_sheet = cli.tracker_manager.get_active_sheet();
 
@@ -223,7 +280,7 @@ pub fn delete_expense_handler(cli: &mut TrackerCli, _args: &[&str]) -> Result<()
     };
 
     println!("?> Select an expense to be deleted:");
-    for (idx, expense) in active_sheet.expenses.iter().enumerate() {
+    for (idx, expense) in active_sheet.expenses().iter().enumerate() {
         println!(
             "> {}. {:<20} {:<8} {}",
             idx,
@@ -241,14 +298,14 @@ pub fn delete_expense_handler(cli: &mut TrackerCli, _args: &[&str]) -> Result<()
             _ => {
                 println!(
                     "> Invalid input. Enter a number in range from 0 to {}",
-                    active_sheet.expenses.len()
+                    active_sheet.expenses().len()
                 )
             }
         }
     };
 
     cli.tracker_manager.update_active_sheet(|sheet| {
-        sheet.expenses.remove(choise);
+        sheet.expenses_mut().remove(choise);
     })?;
     println!("!> Expense has been sucesfully removed.");
 

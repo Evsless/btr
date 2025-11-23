@@ -1,5 +1,8 @@
 use crate::{
-    console::{cmd::CommandNode, handlers},
+    console::{
+        cmd::CommandNode,
+        handlers::{self, show_expenses_handler},
+    },
     database::manager::TrackerManager,
     error::BtrError,
 };
@@ -51,6 +54,11 @@ impl TrackerCli {
             ))
             .add_child(
                 CommandNode::new("show", "Print a configuration of selected category.", None)
+                    .add_child(CommandNode::new(
+                        "expenses",
+                        "Print expenses from the active month.",
+                        Some(handlers::show_expenses_handler),
+                    ))
                     .add_child(CommandNode::new(
                         "sheets",
                         "Print a list of all available expense sheets.",

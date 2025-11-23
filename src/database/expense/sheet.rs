@@ -1,5 +1,8 @@
 use crate::{
-    database::{expense::ExpenseRecord, periods::Period},
+    database::{
+        expense::ExpenseRecord,
+        periods::{self, Period},
+    },
     error::BtrError,
     utils,
 };
@@ -10,10 +13,18 @@ use std::fs::write;
 pub struct ExpenseSheet {
     pub name: String, /* TODO: Try to modify to &str */
     pub period: Period,
-    pub expenses: Vec<ExpenseRecord>,
+    expenses: Vec<ExpenseRecord>,
 }
 
 impl ExpenseSheet {
+    pub fn new(name: String, period: Period, expenses: Vec<ExpenseRecord>) -> Self {
+        Self {
+            name,
+            period,
+            expenses,
+        }
+    }
+
     pub fn save_sheet(&self) -> Result<(), BtrError> {
         let sheet_path = utils::sheets_dir().join(format!("{}.json", &self.name));
 
@@ -35,5 +46,13 @@ impl ExpenseSheet {
         self.save_sheet()?;
 
         Ok(())
+    }
+
+    pub fn expenses(&self) -> &[ExpenseRecord] {
+        &self.expenses
+    }
+
+    pub fn expenses_mut(&mut self) -> &mut Vec<ExpenseRecord> {
+        &mut self.expenses
     }
 }

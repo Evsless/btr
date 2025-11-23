@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Period {
-    pub start: NaiveDate,
-    pub end: NaiveDate,
+    start: NaiveDate,
+    end: NaiveDate,
 }
 
 impl Period {
@@ -59,5 +59,13 @@ impl Period {
             .ok_or(BtrError::InvalidData(None))?;
 
         Self::new(start, end)
+    }
+
+    pub fn start(&self) -> &NaiveDate {
+        &self.start
+    }
+
+    pub fn end(&self) -> &NaiveDate {
+        &self.end
     }
 }
