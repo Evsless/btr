@@ -227,7 +227,7 @@ pub fn show_sheets_handler(cli: &mut TrackerCli, _args: &[&str]) -> Result<(), B
 
 pub fn select_handler(cli: &mut TrackerCli, args: &[&str]) -> Result<(), BtrError> {
     match args.len() {
-        3 => cli.tracker_manager.set_active_sheet(Some(&args[2]))?,
+        2 => cli.tracker_manager.set_active_sheet(Some(&args[1]))?,
         _ => {
             eprintln!("! Wrong input. Sheet name must be provided.")
         }
