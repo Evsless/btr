@@ -1,15 +1,14 @@
 use crate::{
     console::cli::TrackerCli,
     database::{
-        expense::{self, ExpenseRecord, ExpenseSheet},
-        manager::TrackerManager,
+        expense::{ExpenseRecord, ExpenseSheet},
         periods::Period,
     },
     error::{BtrError, BtrErrorKind},
     utils,
 };
 use chrono::{Datelike, Utc};
-use std::{collections::HashMap, fs, io::ErrorKind, thread::AccessError};
+use std::{collections::HashMap, fs, io::ErrorKind};
 
 fn get_sheet_list() -> Result<Vec<String>, BtrError> {
     let entries = utils::sheets_dir().read_dir()?;
@@ -49,23 +48,26 @@ fn print_sheet_list(active_sheet: &Option<ExpenseSheet>) -> Result<(), BtrError>
 }
 
 fn create_sheet_with_prompt(
-    manager: &mut TrackerManager,
+    cli: &mut TrackerCli,
     sheet_name: &str,
     period: Period,
 ) -> Result<(), BtrError> {
     /* Period is a small data type - simple clone use is enough. */
-    if let Err(e) = manager.new_sheet(sheet_name, period.clone(), false) {
+    if let Err(e) = cli
+        .tracker_manager
+        .new_sheet(sheet_name, period.clone(), false)
+    {
         if e.kind() == BtrErrorKind::Io(ErrorKind::AlreadyExists) {
             loop {
                 println!(
                     "!> Sheet '{}.json' already exists. Overwrite? [Y/N]",
                     sheet_name
                 );
-                let user_input = TrackerCli::user_input()?;
+                let user_input = cli.user_input()?;
 
                 match user_input.trim().to_ascii_lowercase().as_str() {
                     "y" => {
-                        manager.new_sheet(sheet_name, period, true)?;
+                        cli.tracker_manager.new_sheet(sheet_name, period, true)?;
                         break;
                     }
                     "n" => {
@@ -96,7 +98,7 @@ pub fn add_expense_handler(cli: &mut TrackerCli, _args: &[&str]) -> Result<(), B
     }
 
     let category_idx = loop {
-        let input = TrackerCli::user_input()?;
+        let input = cli.user_input()?;
         match input.trim().parse::<usize>() {
             Ok(idx) if idx >= 1 && idx <= categories.len() => break idx - 1,
             _ => println!(
@@ -108,7 +110,7 @@ pub fn add_expense_handler(cli: &mut TrackerCli, _args: &[&str]) -> Result<(), B
 
     println!("!> Enter amount:");
     let amount = loop {
-        let input = TrackerCli::user_input()?;
+        let input = cli.user_input()?;
         match input.trim().parse::<f32>() {
             Ok(num) if num > 0.0 => break num,
             _ => println!("! Invalid input. The value must be greated then 0."),
@@ -146,7 +148,7 @@ pub fn add_sheet_handler(cli: &mut TrackerCli, args: &[&str]) -> Result<(), BtrE
         format!("{:02}-{}", date.month(), date.year())
     };
 
-    create_sheet_with_prompt(&mut cli.tracker_manager, &sheet_name, period)
+    create_sheet_with_prompt(cli, &sheet_name, period)
 }
 
 /* ---------------------- SHOW HANDLERS ---------------------- */
@@ -245,7 +247,7 @@ pub fn delete_sheet_handler(cli: &mut TrackerCli, _args: &[&str]) -> Result<(), 
 
     let sheet_list = get_sheet_list()?;
     let choise = loop {
-        let user_input = TrackerCli::user_input()?;
+        let user_input = cli.user_input()?;
 
         match user_input.trim().parse::<usize>() {
             Ok(idx) if idx < sheet_list.len() => break idx,
@@ -291,7 +293,7 @@ pub fn delete_expense_handler(cli: &mut TrackerCli, _args: &[&str]) -> Result<()
     }
 
     let choise = loop {
-        let user_input = TrackerCli::user_input()?;
+        let user_input = cli.user_input()?;
 
         match user_input.trim().parse::<usize>() {
             Ok(input) => break input,

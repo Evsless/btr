@@ -1,4 +1,5 @@
 use std::{
+    collections::VecDeque,
     fs::{File, create_dir_all, read_to_string},
     io::Write,
 };
@@ -107,6 +108,18 @@ impl TrackerManager {
 
     pub fn get_categories(&self) -> &[ExpenseCategory] {
         self.config.expenses()
+    }
+
+    pub fn get_cmd_history(&self) -> &VecDeque<String> {
+        self.config.cmd_history()
+    }
+
+    pub fn config(&self) -> &TrackerConfig {
+        &self.config
+    }
+
+    pub fn config_mut(&mut self) -> &mut TrackerConfig {
+        &mut self.config
     }
 
     pub fn update_active_sheet<F>(&mut self, updater: F) -> Result<(), BtrError>

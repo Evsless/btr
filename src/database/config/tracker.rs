@@ -5,6 +5,7 @@ use crate::{
     utils,
 };
 use std::{
+    collections::VecDeque,
     fs::{self, File, create_dir_all, read_to_string},
     path::PathBuf,
     vec,
@@ -129,5 +130,9 @@ impl TrackerConfig {
 
     pub fn expenses(&self) -> &[ExpenseCategory] {
         &self.expenses
+    }
+
+    pub fn cmd_history(&self) -> &VecDeque<String> {
+        &self.state.cmd_history
     }
 }
